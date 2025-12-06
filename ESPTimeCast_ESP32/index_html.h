@@ -572,10 +572,19 @@ textarea::placeholder {
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Display 12-hour Clock:</span>
         <span class="toggle-switch">
-          <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked)">
+          <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked); toggleTimeVisibility();">
           <span class="toggle-slider"></span>
         </span>
       </label>
+      <div id="twelvehour-setting" style="display:none;">
+        <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Enable a/p for 12-hour Clock:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="amPMShow" name="amPMShow" onchange="setAMPM(this.checked)">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
 
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Use Imperial Units (°F):</span>
@@ -815,6 +824,8 @@ window.onload = function () {
     document.getElementById('ntpServer1').value = data.ntpServer1 || "";
     document.getElementById('ntpServer2').value = data.ntpServer2 || "";
     document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
+    toggleTimeVisibility();
+    document.getElementById('amPMShow').checked = !!data.amPMShow;
     document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
     document.getElementById('showDate').checked = !!data.showDate;
     document.getElementById('showHumidity').checked = !!data.showHumidity;
@@ -976,6 +987,7 @@ async function submitConfig(event) {
   formData.set('brightness', document.getElementById('brightnessSlider').value);
   formData.set('flipDisplay', document.getElementById('flipDisplay').checked ? 'on' : '');
   formData.set('twelveHourToggle', document.getElementById('twelveHourToggle').checked ? 'on' : '');
+  formData.set('amPMShow', document.getElementById('amPMShow').checked ? 'on' : '');
   formData.set('showDayOfWeek', document.getElementById('showDayOfWeek').checked ? 'on' : '');
   formData.set('showDate', document.getElementById('showDate').checked ? 'on' : '');
   formData.set('useHomeAssistant', document.getElementById('useHomeAssistant').checked ? 'on' : '');
@@ -1315,6 +1327,24 @@ function setTwelveHour(val) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "value=" + (val ? 1 : 0)
   });
+}
+
+function setAMPM(val) {
+  fetch('/set_ampm', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function toggleTimeVisibility() {
+  const isTwelveHour = document.getElementById('twelveHourToggle').checked;
+  const amPMDiv = document.getElementById('twelvehour-setting');
+  if (isTwelveHour) {
+    amPMDiv.style.display = 'block';
+  } else {
+    amPMDiv.style.display = 'none';
+  }  
 }
 
 function setShowDayOfWeek(val) {

@@ -13,18 +13,29 @@
 #include <time.h>
 #include <WiFiClientSecure.h>
 #include <ESPmDNS.h>
+#include <Audio.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 #include "index_html.h"     // Web UI
+#include "secrets.h"        // Secrets file - needs to be manually created
 
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
-#define CLK_PIN 12    //D5
-#define CS_PIN 10    // D7
-#define DATA_PIN 11  //D8
+#define CLK_PIN 15 //12    //D5
+#define CS_PIN 16 //10    // D7
+#define DATA_PIN 17 //11  //D8
+
+// Audio Pins
+#define I2S_LRC       5
+#define I2S_BCLK      6
+#define I2S_DOUT      7
+
+Audio audio;
 
 #ifdef ESP8266
 WiFiEventHandler mConnectHandler;
@@ -67,6 +78,7 @@ bool displayOff = false;
 int brightness = 7;
 bool flipDisplay = false;
 bool twelveHourToggle = false;
+bool amPMShow = false;
 bool showDayOfWeek = true;
 bool useHomeAssistant = false;
 bool showHumidity = false;
@@ -81,6 +93,7 @@ unsigned long messageStartTime = 0;
 int currentScrollCount = 0;
 int currentDisplayCycleCount = 0;
 bool showDate = false;
+bool isAlarmPlaying = false;
 
 
 // Dimming
@@ -224,7 +237,6 @@ textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isF
   return desiredDirection;
 }
 
-
 // -----------------------------------------------------------------------------
 // Configuration Load & Save
 // -----------------------------------------------------------------------------
@@ -253,6 +265,7 @@ void loadConfig() {
     doc[F("brightness")] = brightness;
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
+    doc[F("amPMShow")] = amPMShow;    
     doc[F("showDayOfWeek")] = showDayOfWeek;
     doc[F("showDate")] = showDate;
     doc[F("showHumidity")] = showHumidity;
@@ -333,6 +346,7 @@ void loadConfig() {
   brightness = doc["brightness"] | 7;
   flipDisplay = doc["flipDisplay"] | false;
   twelveHourToggle = doc["twelveHourToggle"] | false;
+  amPMShow = doc["amPMShow"] | false;  
   showDayOfWeek = doc["showDayOfWeek"] | true;
   showDate = doc["showDate"] | false;
   showHumidity = doc["showHumidity"] | false;
@@ -428,6 +442,7 @@ void loadConfig() {
 // WiFi Setup
 // -----------------------------------------------------------------------------
 void connectWiFi() {
+  
   Serial.println(F("[WIFI] Connecting to WiFi..."));
 
   bool credentialsExist = (strlen(ssid) > 0);
@@ -662,6 +677,8 @@ void printConfigToSerial() {
   Serial.println(flipDisplay ? "Yes" : "No");
   Serial.print(F("Show 12h Clock: "));
   Serial.println(twelveHourToggle ? "Yes" : "No");
+  Serial.print(F("Show A / P on Clock: "));
+  Serial.println(amPMShow ? "Yes" : "No");
   Serial.print(F("Show Day of the Week: "));
   Serial.println(showDayOfWeek ? "Yes" : "No");
   Serial.print(F("Show Date: "));
@@ -1095,6 +1112,7 @@ void setupWebServer() {
       else if (n == "weatherDuration") doc[n] = v.toInt();
       else if (n == "flipDisplay") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "twelveHourToggle") doc[n] = (v == "true" || v == "on" || v == "1");
+      else if (n == "amPMShow") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDayOfWeek") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "showDate") doc[n] = (v == "true" || v == "on" || v == "1");
       else if (n == "useHomeAssistant") doc[n] = (v == "true" || v == "on" || v == "1");
@@ -1385,6 +1403,17 @@ void setupWebServer() {
     }
     twelveHourToggle = twelveHour;
     Serial.printf("[WEBSERVER] Set twelveHourToggle to %d\n", twelveHourToggle);
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/set_ampm", HTTP_POST, [](AsyncWebServerRequest *request) {
+    bool amPM = false;
+    if (request->hasParam("value", true)) {
+      String v = request->getParam("value", true)->value();
+      amPM = (v == "1" || v == "true" || v == "on");
+    }
+    amPMShow = amPM;
+    Serial.printf("[WEBSERVER] Set amPMShow to %d\n", amPMShow);
     request->send(200, "application/json", "{\"ok\":true}");
   });
 
@@ -2666,6 +2695,36 @@ void ensureHtmlFileExists() {
 
 
 
+// audio callbacks
+void my_audio_info(Audio::msg_t m) {
+    switch(m.e){
+        case Audio::evt_info:           Serial.printf("info: ....... %s\n", m.msg); break;
+        case Audio::evt_eof:            Serial.printf("end of file:  %s\n", m.msg); break;
+        case Audio::evt_bitrate:        Serial.printf("bitrate: .... %s\n", m.msg); break; // icy-bitrate or bitrate from metadata
+        case Audio::evt_icyurl:         Serial.printf("icy URL: .... %s\n", m.msg); break;
+        case Audio::evt_id3data:        Serial.printf("ID3 data: ... %s\n", m.msg); break; // id3-data or metadata
+        case Audio::evt_lasthost:       Serial.printf("last URL: ... %s\n", m.msg); break;
+        case Audio::evt_name:           Serial.printf("station name: %s\n", m.msg); break; // station name or icy-name
+        case Audio::evt_streamtitle:    Serial.printf("stream title: %s\n", m.msg); break;
+        case Audio::evt_icylogo:        Serial.printf("icy logo: ... %s\n", m.msg); break;
+        case Audio::evt_icydescription: Serial.printf("icy descr: .. %s\n", m.msg); break;
+        case Audio::evt_image: for(int i = 0; i < m.vec.size(); i += 2){
+                                        Serial.printf("cover image:  segment %02i, pos %07lu, len %05lu\n", i / 2, m.vec[i], m.vec[i + 1]);} break; // APIC
+        case Audio::evt_lyrics:         Serial.printf("sync lyrics:  %s\n", m.msg); break;
+        case Audio::evt_log   :         Serial.printf("audio_logs:   %s\n", m.msg); break;
+        default:                        Serial.printf("message:..... %s\n", m.msg); break;
+    }
+}
+
+// This fires automatically when the song finishes
+void audio_eof_mp3(const char *info) {
+  Serial.print("EOF (End of File): ");
+  Serial.println(info);
+  
+  isAlarmPlaying = false; // Turn off the switch
+  // audio.stopSong(); // Optional: ensures buffers are flushed
+}
+
 // -----------------------------------------------------------------------------
 // Main setup() and loop()
 // -----------------------------------------------------------------------------
@@ -2680,6 +2739,7 @@ DisplayMode key:
   6: Custom Message
 */
 void setup() {
+  Audio::audio_info_callback = my_audio_info; // optional
   Serial.begin(115200);
   delay(1000);
   Serial.println();
@@ -2763,9 +2823,48 @@ void setup() {
   lastColonBlink = millis();
   bootMillis = millis();
   saveUptime();
+  
+  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  audio.setVolume(6); // default 0...21
+  audio.connecttohost("http://stream.antennethueringen.de/live/aac-64/stream.antennethueringen.de/");
+
+  // Hostname defaults to esp3232-[MAC]
+  ArduinoOTA.setHostname("ESPTimeCast");
+  
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+
+  ArduinoOTA.begin();
+
 }
 
 void loop() {
+  ArduinoOTA.handle();
   if (isAPMode) {
     dnsServer.processNextRequest();
   }
@@ -2990,6 +3089,15 @@ void loop() {
       break;
   }
 
+  // 1. Audio Handling (Highest Priority)
+  if (isAlarmPlaying) {
+      audio.loop(); 
+      // NO DELAYS HERE!
+  } else {
+      // 2. Normal Idle maintenance
+      // It is safe to delay here because no music is playing
+      vTaskDelay(1); 
+  }
 
   // Only advance mode by timer for clock/weather, not description!
   unsigned long displayDuration = (displayMode == 0) ? clockDuration : weatherDuration;
@@ -3028,7 +3136,14 @@ void loop() {
   if (twelveHourToggle) {
     int hour12 = timeinfo.tm_hour % 12;
     if (hour12 == 0) hour12 = 12;
-    sprintf(baseTime, "%d:%02d", hour12, timeinfo.tm_min);
+    if (amPMShow) {
+      // Determine AM or PM based on the raw 24-hour value
+      const char* ampm = (timeinfo.tm_hour < 12) ? " \x80" : " \x81";
+      sprintf(baseTime, "%d:%02d%s", hour12, timeinfo.tm_min, ampm);
+    }
+    else {
+      sprintf(baseTime, "%d:%02d", hour12, timeinfo.tm_min);
+    }
   } else {
     sprintf(baseTime, "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
   }
