@@ -472,19 +472,44 @@ textarea::placeholder {
 
 
   <h2>Weather Settings</h2>
-  <label for="openWeatherApiKey">OpenWeather API Key</label>
-  <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
-  <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
-
-  <label>Location</label>
-  <div class="form-row two-col"> 
-    <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
-    <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
-  </div>
-  <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
-
+  <label for="useHomeAssistant">
+    <span style="margin-right: 0.5em;">Use Home Assistant Weather:</span>
+    <span class="toggle-switch">
+      <input type="checkbox" id="useHomeAssistant" name="useHomeAssistant" onchange="setUseHomeAssistant(this.checked); toggleWeatherVisibility();">
+      <span class="toggle-slider"></span>
+    </span>
+  </label>
   <div class="small">    
-    <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+    Enable to disable OpenWeather API and use HomeAssistant API settings
+  </div>
+  <div id="ha-settings" style="display:none;">
+    <h3>Home Assistant API</h3>
+    <label for="homeAssistantURL">Home Assistant URL</label>
+    <input type="text" id="homeAssistantURL" name="homeAssistantURL" placeholder="http(s) URL for Home Assistant Insance"/>    
+    <label for="homeAssistantApiKey">Home Assistant API Key</label>
+    <input type="text" id="homeAssistantApiKey" name="homeAssistantApiKey" placeholder="ADD-YOUR-LONG-LIVED-ACCESS-TOKEN"/>    
+    <label for="haTempSensor">Home Assistant Temperature Entity Name</label>
+    <input type="text" id="haTempSensor" name="haTempSensor" placeholder="Temperature Entity Name"/>
+    <label for="haHumiditySensor">Home Assistant Humidity Entity Name</label>
+    <input type="text" id="haHumiditySensor" name="haHumiditySensor" placeholder="Humidity Entity Name"/>
+  </div>
+  
+  <div id="owm-settings">
+    <h3>OpenWeather API</h3>
+    <label for="openWeatherApiKey">OpenWeather API Key</label>
+    <input type="text" id="openWeatherApiKey" name="openWeatherApiKey" placeholder="ADD-YOUR-API-KEY-32-CHARACTERS"/>    
+    <div class="small">Required to fetch weather data. <a href="https://home.openweathermap.org/users/sign_up" target="_blank">Get your API key here</a>.</div>
+
+    <label>Location</label>
+    <div class="form-row two-col"> 
+      <input type="text" id="openWeatherCity" name="openWeatherCity" placeholder="City / Zip / Lat."/>    
+      <input type="text" id="openWeatherCountry" name="openWeatherCountry" placeholder="Country Code / Long."/>  
+    </div>
+    <button type="button" class="primary-button" id="geo-button" onclick="getLocation()" style="margin-top: 1rem;">Get My Location</button>
+
+    <div class="small">    
+      <strong>Location format examples:</strong> City, Country Code - Osaka, JP | ZIP, Country Code - 94040, US | Latitude, Longitude - 34.6937, 135.5023
+    </div>
   </div>
   
   <div class="form-group">
@@ -547,10 +572,19 @@ textarea::placeholder {
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Display 12-hour Clock:</span>
         <span class="toggle-switch">
-          <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked)">
+          <input type="checkbox" id="twelveHourToggle" name="twelveHourToggle" onchange="setTwelveHour(this.checked); toggleTimeVisibility();">
           <span class="toggle-slider"></span>
         </span>
       </label>
+      <div id="twelvehour-setting" style="display:none;">
+        <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Enable a/p for 12-hour Clock:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="amPMShow" name="amPMShow" onchange="setAMPM(this.checked)">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
 
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Use Imperial Units (°F):</span>
@@ -567,14 +601,15 @@ textarea::placeholder {
           <span class="toggle-slider"></span>
         </span>
       </label>
-
-      <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
-        <span style="margin-right: 0.5em;">Show Weather Description:</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
-          <span class="toggle-slider"></span>
-        </span>
-      </label>
+      <div id="owm-desc-settings">
+        <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
+          <span style="margin-right: 0.5em;">Show Weather Description:</span>
+          <span class="toggle-switch">
+            <input type="checkbox" id="showWeatherDescription" name="showWeatherDescription" onchange="setShowWeatherDescription(this.checked)">
+            <span class="toggle-slider"></span>
+          </span>
+        </label>
+      </div>
 
       <label style="display: flex; align-items: center; margin-top: 1.75rem; justify-content: space-between;">
         <span style="margin-right: 0.5em;">Flip Display (180°):</span>
@@ -754,11 +789,19 @@ window.onload = function () {
     document.getElementById('ssid').value = data.ssid || '';
     document.getElementById('password').value = data.password || '';
     const apiInput = document.getElementById('openWeatherApiKey');
+    const haApiInput = document.getElementById('homeAssistantApiKey');
     if (data.openWeatherApiKey && data.openWeatherApiKey.trim() !== '') {
       apiInput.value = MASK;
       hasSavedKey = true;
     } else {
       apiInput.value = '';
+      hasSavedKey = false;
+    }
+    if (data.homeAssistantApiKey && data.homeAssistantApiKey.trim() !== '') {
+      haApiInput.value = MASK;
+      hasSavedKey = true;
+    } else {
+      haApiInput.value = '';
       hasSavedKey = false;
     }
 
@@ -768,6 +811,11 @@ window.onload = function () {
     document.getElementById('clockDuration').value = (data.clockDuration || 10000) / 1000;
     document.getElementById('weatherDuration').value = (data.weatherDuration || 5000) / 1000;
     document.getElementById('language').value = data.language || '';
+    document.getElementById('useHomeAssistant').checked = !!data.useHomeAssistant;
+    toggleWeatherVisibility();
+    document.getElementById('homeAssistantURL').value = data.homeAssistantURL || ''; 
+    document.getElementById('haTempSensor').value = data.haTempSensor || '';
+    document.getElementById('haHumiditySensor').value = data.haHumiditySensor || '';  
 
     // Advanced:
     document.getElementById('brightnessSlider').value = typeof data.brightness !== "undefined" ? data.brightness : 10;
@@ -776,6 +824,8 @@ window.onload = function () {
     document.getElementById('ntpServer1').value = data.ntpServer1 || "";
     document.getElementById('ntpServer2').value = data.ntpServer2 || "";
     document.getElementById('twelveHourToggle').checked = !!data.twelveHourToggle;
+    toggleTimeVisibility();
+    document.getElementById('amPMShow').checked = !!data.amPMShow;
     document.getElementById('showDayOfWeek').checked = !!data.showDayOfWeek;
     document.getElementById('showDate').checked = !!data.showDate;
     document.getElementById('showHumidity').checked = !!data.showHumidity;
@@ -786,6 +836,7 @@ window.onload = function () {
     const autoDimmingEl = document.getElementById('autoDimmingEnabled');
     const dimmingEnabledEl = document.getElementById('dimmingEnabled');
     const apiInputEl = document.getElementById('openWeatherApiKey');
+
 
     // Evaluate flags from config.json
     const isAutoDimming = (data.autoDimmingEnabled === true || data.autoDimmingEnabled === "true" || data.autoDimmingEnabled === 1);
@@ -907,83 +958,79 @@ window.onload = function () {
 async function submitConfig(event) {
   event.preventDefault();
   isSaving = true;
+  const data = {};
 
-  const form = document.getElementById('configForm');
-  const formData = new FormData(form);
+  // --- Integers ---
+  data.clockDuration = parseInt(document.getElementsByName('clockDuration')[0].value) * 1000;
+  data.weatherDuration = parseInt(document.getElementsByName('weatherDuration')[0].value) * 1000;
+  data.dimBrightness = parseInt(document.getElementById('dimBrightness').value);
+  data.brightness = parseInt(document.getElementById('brightnessSlider').value);
 
-  const clockDuration = parseInt(formData.get('clockDuration')) * 1000;
-  const weatherDuration = parseInt(formData.get('weatherDuration')) * 1000;
-  formData.set('clockDuration', clockDuration);
-  formData.set('weatherDuration', weatherDuration);
+  // --- Booleans (True/False) ---
+  data.flipDisplay = document.getElementById('flipDisplay').checked;
+  data.twelveHourToggle = document.getElementById('twelveHourToggle').checked;
+  data.amPMShow = document.getElementById('amPMShow').checked;
+  data.showDayOfWeek = document.getElementById('showDayOfWeek').checked;
+  data.showDate = document.getElementById('showDate').checked;
+  data.useHomeAssistant = document.getElementById('useHomeAssistant').checked;
+  data.showHumidity = document.getElementById('showHumidity').checked;
+  data.colonBlinkEnabled = document.getElementById('colonBlinkEnabled').checked;
+  data.showWeatherDescription = document.getElementById('showWeatherDescription').checked;
+  data.weatherUnits = document.getElementById('weatherUnits').checked ? 'imperial' : 'metric';
 
+  // --- Strings ---
   let apiKeyToSend = apiInput.value;
-
-  // If the user left the masked key untouched, skip sending it
-  if (apiKeyToSend === MASK && hasSavedKey) {
-    formData.delete('openWeatherApiKey');
-  } else {
-    formData.set('openWeatherApiKey', apiKeyToSend);
+  // Only send if it's not the mask
+  if (apiKeyToSend !== MASK || !hasSavedKey) {
+     data.openWeatherApiKey = apiKeyToSend;
   }
-
-  // Advanced: ensure correct values are set for advanced fields
-  formData.set('brightness', document.getElementById('brightnessSlider').value);
-  formData.set('flipDisplay', document.getElementById('flipDisplay').checked ? 'on' : '');
-  formData.set('twelveHourToggle', document.getElementById('twelveHourToggle').checked ? 'on' : '');
-  formData.set('showDayOfWeek', document.getElementById('showDayOfWeek').checked ? 'on' : '');
-  formData.set('showDate', document.getElementById('showDate').checked ? 'on' : '');
-  formData.set('showHumidity', document.getElementById('showHumidity').checked ? 'on' : '');
-  formData.set('colonBlinkEnabled', document.getElementById('colonBlinkEnabled').checked ? 'on' : '');
-
-  // --- Dimming ---
-  const autoDimmingChecked = document.getElementById('autoDimmingEnabled').checked;
-  const customDimmingChecked = document.getElementById('dimmingEnabled').checked;
-
+  let haApiKeyToSend = haApiInput.value;
+  if (haApiKeyToSend !== MASK || !hasSavedKey) {
+     data.homeAssistantApiKey = haApiKeyToSend;
+  }
+     
+  // --- D. Dimming Logic ---
+  const autoDim = document.getElementById('autoDimmingEnabled').checked;
+  const custDim = document.getElementById('dimmingEnabled').checked;
+  
   // Mutual exclusivity (if both checked somehow, keep auto as priority)
-  if (autoDimmingChecked && customDimmingChecked) {
-    formData.set('autoDimmingEnabled', 'true');
-    formData.set('dimmingEnabled', 'false');
+  if (autoDim && custDim) {
+      data.autoDimmingEnabled = true;
+      data.dimmingEnabled = false;
   } else {
-    formData.set('autoDimmingEnabled', autoDimmingChecked ? 'true' : 'false');
-    formData.set('dimmingEnabled', customDimmingChecked ? 'true' : 'false');
+      data.autoDimmingEnabled = autoDim;
+      data.dimmingEnabled = custDim;
   }
 
+  // Parse Start/End Times
   const dimStart = document.getElementById('dimStartTime').value; // "18:45"
-  const dimEnd = document.getElementById('dimEndTime').value; // "08:30"
+  const dimEnd = document.getElementById('dimEndTime').value;     // "08:30"
 
-  // Parse hour and minute
   if (dimStart) {
     const [startHour, startMin] = dimStart.split(":").map(x => parseInt(x, 10));
-    formData.set('dimStartHour', startHour);
-    formData.set('dimStartMinute', startMin);
+    data.dimStartHour = startHour;
+    data.dimStartMinute = startMin;
   }
   if (dimEnd) {
     const [endHour, endMin] = dimEnd.split(":").map(x => parseInt(x, 10));
-    formData.set('dimEndHour', endHour);
-    formData.set('dimEndMinute', endMin);
+    data.dimEndHour = endHour;
+    data.dimEndMinute = endMin;
   }
-  formData.set('dimBrightness', document.getElementById('dimBrightness').value);
-  formData.set('showWeatherDescription', document.getElementById('showWeatherDescription').checked ? 'on' : '');
-  formData.set('weatherUnits', document.getElementById('weatherUnits').checked ? 'imperial' : 'metric');
+  
+  // --- E. Countdown Logic ---
+  data.countdownEnabled = document.getElementById('countdownEnabled').checked;
+  data.isDramaticCountdown = document.getElementById('isDramaticCountdown').checked;
+  data.countdownDate = document.getElementById('countdownDate').value;
+  data.countdownTime = document.getElementById('countdownTime').value;
 
-  // --- NEW: Countdown Form Data ---
-  formData.set('countdownEnabled', document.getElementById('countdownEnabled').checked ? 'true' : 'false');
-  formData.set('isDramaticCountdown', document.getElementById('isDramaticCountdown').checked ? 'true' : 'false');
-  // Date and Time inputs are already handled by formData if they have a 'name' attribute
-  // 'countdownDate' and 'countdownTime' are collected automatically
-  // Also apply the same validation for the label when submitting
-  const finalCountdownLabel = document.getElementById('countdownLabel').value.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
-  formData.set('countdownLabel', finalCountdownLabel);
-  // --- END NEW ---
+  // Sanitize Label
+  const rawLabel = document.getElementById('countdownLabel').value;
+  data.countdownLabel = rawLabel.toUpperCase().replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '');
 
-  const params = new URLSearchParams();
-  for (const pair of formData.entries()) {
-    params.append(pair[0], pair[1]);
-  }
-
-  // Sanitize and set customMessage before sending
+  // --- F. Custom Message ---
   const customMsgInput = document.getElementById('customMessage');
   if (customMsgInput) {
-    customMsgInput.value = customMsgInput.value
+    data.customMessage = customMsgInput.value
       .toUpperCase()
       .replace(/[^A-Z0-9 :!'\-.,_\+%\/?]/g, '')
       .replace(/\s+/g, ' ')
@@ -991,107 +1038,42 @@ async function submitConfig(event) {
       .substring(0, 120);
   }
 
-  // Check AP mode status
+  // --- G. Handling AP Mode Logic ---
   let isAPMode = false;
   try {
     const apStatusResponse = await fetch('/ap_status');
     const apStatusData = await apStatusResponse.json();
     isAPMode = apStatusData.isAP;
-  } catch (error) {
-    console.error("Error fetching AP status:", error);
-    // Handle error appropriately (e.g., assume not in AP mode)
-  }
+  } catch (e) { console.error(e); }
 
   if (isAPMode) {
     showSavingModal("");
-    updateSavingModal(
-      "✅ Settings saved successfully!<br><br>" +
-      "Rebooting the device now...<br><br>" +
-      "Your device will connect to your Wi-Fi.<br>" +
-      "Its new IP address will appear on the display for future access.",
-      true // show spinner
-    );
-    } else{
-      showSavingModal("");
-    };  
+    updateSavingModal("✅ Settings saved! Rebooting...", true);
+  } else {
+    showSavingModal("");
+  }
 
-  await new Promise(resolve => setTimeout(resolve, isAPMode ? 5000 : 0));
-  fetch('/save', {
+  await new Promise(resolve => setTimeout(resolve, isAPMode ? 2000 : 0));
+
+  // --- H. The Final Send (JSON Method) ---
+  fetch('/save', { 
     method: 'POST',
-    body: params
+    headers: { 'Content-Type': 'application/json' }, // Tell C++ it's JSON
+    body: JSON.stringify(data)                        // Convert Object to Text
   })
   .then(response => {
-    if (!response.ok) {
-      return response.json().then(json => {
-        throw new Error(`Server error ${response.status}: ${json.error}`);
-      });
-    }
+    if (!response.ok) throw new Error(`Server error ${response.status}`);
     return response.json();
   })
   .then(json => {
     isSaving = false;
-    removeReloadButton();
-    removeRestoreButton();
-
-    if (isAPMode) {
-      setTimeout(() => {
-      document.getElementById('configForm').style.display = 'none';
-      document.querySelector('.footer').style.display = 'none';
-      document.querySelector('html').style.height = '100vh';
-      document.body.style.height = '100vh';
-      updateSavingModal(
-        "✅ All done!<br>You can now close this tab safely.<br><br>" +
-        "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
-        "Check the display for the current IP address.",
-        false // stop spinner
-      );
-    }, 5000);
-  return;
-  } else {
-      showSavingModal("");
-      updateSavingModal("✅ Configuration saved successfully.<br><br>Device will reboot", false);
-      setTimeout(() => location.href = location.href.split('#')[0], 3000);
-    }
+    // Success Logic
+    updateSavingModal("✅ Configuration saved successfully.<br>Device will reboot.", false);
+    setTimeout(() => location.href = location.href.split('#')[0], 3000);
   })
   .catch(err => {
     isSaving = false;
-
-    if (isAPMode && err.message.includes("Failed to fetch")) {
-      console.warn("Expected disconnect in AP mode after reboot.");
-      showSavingModal("");
-      updateSavingModal("✅ Settings saved successfully!<br><br>Rebooting the device now... ", false);
-      setTimeout(() => {
-        document.getElementById('configForm').style.display = 'none'; 
-        updateSavingModal("✅ All done!<br>You can now close this tab safely.<br><br>" +
-        "Your device has rebooted and is now connected to your Wi-Fi.<br>" +
-        "Check the display for the current IP address.", false);
-      }, 5000);
-      removeReloadButton();
-      removeRestoreButton();
-      return;
-    }
-
-    console.error('Save error:', err);
-    let friendlyMessage = "⚠️ Something went wrong while saving the configuration.";
-    if (err.message.includes("Failed to fetch")) {
-      friendlyMessage = "⚠️ Cannot connect to the device.<br>Is it powered on and connected?";
-    }
-
-    updateSavingModal(`${friendlyMessage}<br><br>Details: ${err.message}`, false);
-
-    // Show only one action button, based on error content
-    removeReloadButton();
-    removeRestoreButton();
-    const errorMsg = (err.message || "").toLowerCase();
-    if (
-      errorMsg.includes("config corrupted") ||
-      errorMsg.includes("failed to write config") ||
-      errorMsg.includes("restore")
-    ) {
-      ensureRestoreButton();
-    } else {
-      ensureReloadButton();
-    }
+    updateSavingModal(`⚠️ Save Error: ${err.message}`, false);
   });
 }
 
@@ -1269,12 +1251,56 @@ function setTwelveHour(val) {
   });
 }
 
+function setAMPM(val) {
+  fetch('/set_ampm', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function toggleTimeVisibility() {
+  const isTwelveHour = document.getElementById('twelveHourToggle').checked;
+  const amPMDiv = document.getElementById('twelvehour-setting');
+  if (isTwelveHour) {
+    amPMDiv.style.display = 'block';
+  } else {
+    amPMDiv.style.display = 'none';
+  }  
+}
+
 function setShowDayOfWeek(val) {
   fetch('/set_dayofweek', {
     method: 'POST',
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "value=" + (val ? 1 : 0)
   });
+}
+
+
+function setUseHomeAssistant(val) {
+  fetch('/set_useHomeAssistant', {
+    method: 'POST',
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "value=" + (val ? 1 : 0)
+  });
+}
+
+function toggleWeatherVisibility() {
+  const isHA = document.getElementById('useHomeAssistant').checked;
+  const haDiv = document.getElementById('ha-settings');
+  const owmDiv = document.getElementById('owm-settings');
+  const owmDescDiv = document.getElementById('owm-desc-settings');
+
+  if (isHA) {
+    haDiv.style.display = 'block';
+    owmDiv.style.display = 'none';
+    owmDescDiv.style.display = 'none';
+  } else {
+    haDiv.style.display = 'none';
+    owmDiv.style.display = 'block';
+    owmDescDiv.style.display = 'block';
+  }
 }
 
 function setShowDate(val) {
@@ -1417,7 +1443,10 @@ async function getLocation() {
 const MASK_LENGTH = 32;
 const MASK = '*'.repeat(MASK_LENGTH);
 const apiInput = document.getElementById('openWeatherApiKey');
+const haApiInput = document.getElementById('homeAssistantApiKey');
 let hasSavedKey = false;
+let haHasSavedKey = false;
+
 
 // --- Initialize the field after config load ---
 if (apiInput.value && apiInput.value.trim() !== '') {
@@ -1427,6 +1456,16 @@ if (apiInput.value && apiInput.value.trim() !== '') {
   apiInput.value = '';
   hasSavedKey = false;
 }
+
+// --- Initialize the field after config load ---
+if (haApiInput.value && haApiInput.value.trim() !== '') {
+  haApiInput.value = MASK;   // show mask
+  haHasSavedKey = true;
+} else {
+  haApiInput.value = '';
+  haHasSavedKey = false;
+}
+
 
 // --- Detect user clearing intent ---
 apiInput.addEventListener('input', () => {
@@ -1454,6 +1493,39 @@ apiInput.addEventListener('blur', () => {
       hasSavedKey = false; // user cleared the key
       apiInput.dataset.clearing = 'false';
       apiInput.value = ''; // leave blank
+      setDimmingFieldsEnabled();
+    }
+  }
+});
+
+
+
+// --- Detect user clearing intent ---
+haApiInput.addEventListener('input', () => {
+  haApiInput.dataset.clearing = haApiInput.value === '' ? 'true' : 'false';
+});
+
+// --- Handle Delete/Backspace when focused but empty ---
+haApiInput.addEventListener('keydown', (e) => {
+  if ((e.key === 'Backspace' || e.key === 'Delete') && haApiInput.value === '') {
+    haApiInput.dataset.clearing = 'true';
+  }
+});
+
+// --- Focus handler: clear mask for editing ---
+haApiInput.addEventListener('focus', () => {
+  if (haApiInput.value === MASK) haApiInput.value = '';
+});
+
+// --- Blur handler: restore mask if user didn’t clear the field ---
+haApiInput.addEventListener('blur', () => {
+  if (haApiInput.value === '') {
+    if (hasSavedKey && haApiInput.dataset.clearing !== 'true') {
+      haApiInput.value = MASK; // remask
+    } else {
+      hasSavedKey = false; // user cleared the key
+      haApiInput.dataset.clearing = 'false';
+      haApiInput.value = ''; // leave blank
       setDimmingFieldsEnabled();
     }
   }

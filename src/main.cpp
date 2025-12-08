@@ -16,6 +16,7 @@
 #include <Audio.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <Button2.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
@@ -237,6 +238,23 @@ textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isF
   return desiredDirection;
 }
 
+// Universal helper for ArduinoJson v7
+// 'obj' can be the main doc, or a nested object like doc["countdown"]
+template <typename T>
+T getJsonValue(JsonVariantConst obj, const char* key, T defaultValue) {
+    // ArduinoJson v7 handles null checks automatically.
+    // If 'obj' is null, obj[key] is null.
+    // .is<T>() checks if the key exists AND holds the correct type.
+    if (obj[key].is<T>()) {
+        return obj[key].as<T>();
+    }
+    Serial.print(F("[CONFIG] Key '"));
+    Serial.print(key);
+    Serial.print(F("' missing or invalid. Defaulting to: "));
+    Serial.println(defaultValue);
+    return defaultValue;
+}
+
 // -----------------------------------------------------------------------------
 // Configuration Load & Save
 // -----------------------------------------------------------------------------
@@ -246,7 +264,7 @@ void loadConfig() {
   // Check if config.json exists, if not, create default
   if (!LittleFS.exists("/config.json")) {
     Serial.println(F("[CONFIG] config.json not found, creating with defaults..."));
-    DynamicJsonDocument doc(1024);
+    JsonDocument doc;
     doc[F("ssid")] = ssid;
     doc[F("password")] = password;
     doc[F("useHomeAssistant")] = useHomeAssistant;
@@ -288,12 +306,12 @@ void loadConfig() {
     doc[F("sunsetMinute")] = sunsetMinute;
 
     // Add countdown defaults when creating a new config.json
-    JsonObject countdownObj = doc.createNestedObject("countdown");
+    JsonObject countdownObj = doc["countdown"].to<JsonObject>();
     countdownObj["enabled"] = false;
     countdownObj["targetTimestamp"] = 0;
     countdownObj["label"] = "";
     countdownObj["isDramaticCountdown"] = true;
-
+    
     File f = LittleFS.open("/config.json", "w");
     if (f) {
       serializeJsonPretty(doc, f);
@@ -311,7 +329,7 @@ void loadConfig() {
     return;
   }
 
-  DynamicJsonDocument doc(1024);  // Size based on ArduinoJson Assistant + buffer
+  JsonDocument doc;  // Size based on ArduinoJson Assistant + buffer
   DeserializationError error = deserializeJson(doc, configFile);
   configFile.close();
 
@@ -321,84 +339,49 @@ void loadConfig() {
     return;
   }
 
-  strlcpy(ssid, doc["ssid"] | "", sizeof(ssid));
-  strlcpy(password, doc["password"] | "", sizeof(password));
-  strlcpy(homeAssistantURL, doc["homeAssistantURL"] | "", sizeof(homeAssistantURL));
-  strlcpy(homeAssistantApiKey, doc["homeAssistantApiKey"] | "", sizeof(homeAssistantApiKey));
-  strlcpy(haTempSensor, doc["haTempSensor"] | "", sizeof(haTempSensor));
-  strlcpy(haHumiditySensor, doc["haHumiditySensor"] | "", sizeof(haHumiditySensor));
-  strlcpy(openWeatherApiKey, doc["openWeatherApiKey"] | "", sizeof(openWeatherApiKey));
-  strlcpy(openWeatherCity, doc["openWeatherCity"] | "", sizeof(openWeatherCity));
-  strlcpy(openWeatherCountry, doc["openWeatherCountry"] | "", sizeof(openWeatherCountry));
-  strlcpy(weatherUnits, doc["weatherUnits"] | "metric", sizeof(weatherUnits));
-  strlcpy(customMessage, doc["customMessage"] | "", sizeof(customMessage));
+  strlcpy(ssid, getJsonValue(doc, "ssid", ""), sizeof(ssid));
+  strlcpy(password, getJsonValue(doc, "password", ""), sizeof(password));
+  strlcpy(homeAssistantURL, getJsonValue(doc, "homeAssistantURL", ""), sizeof(homeAssistantURL));
+  strlcpy(homeAssistantApiKey, getJsonValue(doc, "homeAssistantApiKey", ""), sizeof(homeAssistantApiKey));
+  strlcpy(haTempSensor, getJsonValue(doc, "haTempSensor", ""), sizeof(haTempSensor));
+  strlcpy(haHumiditySensor, getJsonValue(doc, "haHumiditySensor", ""), sizeof(haHumiditySensor));
+  strlcpy(openWeatherApiKey, getJsonValue(doc, "openWeatherApiKey", ""), sizeof(openWeatherApiKey));
+  strlcpy(openWeatherCity, getJsonValue(doc, "openWeatherCity", ""), sizeof(openWeatherCity));
+  strlcpy(openWeatherCountry, getJsonValue(doc, "openWeatherCountry", ""), sizeof(openWeatherCountry));
+  strlcpy(weatherUnits, getJsonValue(doc, "weatherUnits", "metric"), sizeof(weatherUnits));
+  strlcpy(customMessage, getJsonValue(doc, "customMessage", ""), sizeof(customMessage));
   strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
-  clockDuration = doc["clockDuration"] | 10000;
-  weatherDuration = doc["weatherDuration"] | 5000;
-  strlcpy(timeZone, doc["timeZone"] | "Etc/UTC", sizeof(timeZone));
-  if (doc.containsKey("language")) {
-    strlcpy(language, doc["language"], sizeof(language));
-  } else {
-    strlcpy(language, "en", sizeof(language));
-    Serial.println(F("[CONFIG] 'language' key not found in config.json, defaulting to 'en'."));
-  }
+  clockDuration = getJsonValue(doc, "clockDuration", 10000);
+  weatherDuration = getJsonValue(doc, "weatherDuration", 5000);
 
-  brightness = doc["brightness"] | 7;
-  flipDisplay = doc["flipDisplay"] | false;
-  twelveHourToggle = doc["twelveHourToggle"] | false;
-  amPMShow = doc["amPMShow"] | false;  
-  showDayOfWeek = doc["showDayOfWeek"] | true;
-  showDate = doc["showDate"] | false;
-  showHumidity = doc["showHumidity"] | false;
-  useHomeAssistant = doc["useHomeAssistant"] | false;
-  colonBlinkEnabled = doc.containsKey("colonBlinkEnabled") ? doc["colonBlinkEnabled"].as<bool>() : true;
-  showWeatherDescription = doc["showWeatherDescription"] | false;
+  strlcpy(timeZone, getJsonValue(doc, "timeZone", "Etc/UTC"), sizeof(timeZone));
+  strlcpy(language, getJsonValue(doc, "language", "en"), sizeof(language));
 
-  // --- Dimming settings ---
-  if (doc["dimmingEnabled"].is<bool>()) {
-    dimmingEnabled = doc["dimmingEnabled"].as<bool>();
-  } else {
-    String de = doc["dimmingEnabled"].as<String>();
-    dimmingEnabled = (de == "true" || de == "1" || de == "on");
-  }
+  brightness = getJsonValue(doc, "brightness", 7);
+  flipDisplay = getJsonValue(doc, "flipDisplay", false);
+  twelveHourToggle = getJsonValue(doc, "twelveHourToggle", false);
+  amPMShow = getJsonValue(doc, "amPMShow", false);
+  showDayOfWeek = getJsonValue(doc, "showDayOfWeek", true);
+  showDate = getJsonValue(doc, "showDate", false);
+  showHumidity = getJsonValue(doc, "showHumidity", false);
+  useHomeAssistant = getJsonValue(doc, "useHomeAssistant", false);
+  colonBlinkEnabled = getJsonValue(doc, "colonBlinkEnabled", true);
+  showWeatherDescription = getJsonValue(doc, "showWeatherDescription", false);
+  dimmingEnabled = getJsonValue(doc, "dimmingEnabled", false);
+  autoDimmingEnabled = getJsonValue(doc, "autoDimmingEnabled", false);
 
-  String de = doc["dimmingEnabled"].as<String>();
-  dimmingEnabled = (de == "true" || de == "on" || de == "1");
+  dimStartHour = getJsonValue(doc, "dimStartHour", 18);
+  dimStartMinute = getJsonValue(doc, "dimStartMinute", 0);
+  dimEndHour = getJsonValue(doc, "dimEndHour", 8);
+  dimEndMinute = getJsonValue(doc, "dimEndMinute", 0);
+  dimBrightness = getJsonValue(doc, "dimBrightness", 2);
+  sunriseHour = getJsonValue(doc, "sunriseHour", 6);
+  sunriseMinute = getJsonValue(doc, "sunriseMinute", 0);
+  sunsetHour = getJsonValue(doc, "sunsetHour", 18);
+  sunsetMinute = getJsonValue(doc, "sunsetMinute", 0);
 
-  dimStartHour = doc["dimStartHour"] | 18;
-  dimStartMinute = doc["dimStartMinute"] | 0;
-  dimEndHour = doc["dimEndHour"] | 8;
-  dimEndMinute = doc["dimEndMinute"] | 0;
-  dimBrightness = doc["dimBrightness"] | 0;
-
-  // safely handle both numeric or string "Off" for dimBrightness
-  if (doc["dimBrightness"].is<int>()) {
-    dimBrightness = doc["dimBrightness"].as<int>();
-  } else {
-    String val = doc["dimBrightness"].as<String>();
-    if (val.equalsIgnoreCase("off")) dimBrightness = -1;
-    else dimBrightness = val.toInt();
-  }
-
-  // --- Automatic dimming ---
-  if (doc.containsKey("autoDimmingEnabled")) {
-    if (doc["autoDimmingEnabled"].is<bool>()) {
-      autoDimmingEnabled = doc["autoDimmingEnabled"].as<bool>();
-    } else {
-      String val = doc["autoDimmingEnabled"].as<String>();
-      autoDimmingEnabled = (val == "true" || val == "1" || val == "on");
-    }
-  } else {
-    autoDimmingEnabled = false;  // default if key missing
-  }
-
-  sunriseHour = doc["sunriseHour"] | 6;
-  sunriseMinute = doc["sunriseMinute"] | 0;
-  sunsetHour = doc["sunsetHour"] | 18;
-  sunsetMinute = doc["sunsetMinute"] | 0;
-
-  strlcpy(ntpServer1, doc["ntpServer1"] | "pool.ntp.org", sizeof(ntpServer1));
-  strlcpy(ntpServer2, doc["ntpServer2"] | "time.nist.gov", sizeof(ntpServer2));
+  strlcpy(ntpServer1, getJsonValue(doc, "ntpServer1", "pool.ntp.org"), sizeof(ntpServer1));
+  strlcpy(ntpServer2, getJsonValue(doc, "ntpServer2", "time.nist.gov"), sizeof(ntpServer2));
 
   if (strcmp(weatherUnits, "imperial") == 0)
     tempSymbol = ']';
@@ -407,12 +390,12 @@ void loadConfig() {
 
 
   // --- COUNTDOWN CONFIG LOADING ---
-  if (doc.containsKey("countdown")) {
+  if (doc["countdown"]) {
     JsonObject countdownObj = doc["countdown"];
 
-    countdownEnabled = countdownObj["enabled"] | false;
-    countdownTargetTimestamp = countdownObj["targetTimestamp"] | 0;
-    isDramaticCountdown = countdownObj["isDramaticCountdown"] | true;
+    countdownEnabled = getJsonValue(countdownObj, "enabled", false);
+    countdownTargetTimestamp = getJsonValue(countdownObj, "targetTimestamp", 0);
+    isDramaticCountdown = getJsonValue(countdownObj, "isDramaticCountdown", true);
 
     JsonVariant labelVariant = countdownObj["label"];
     if (labelVariant.isNull() || !labelVariant.is<const char *>()) {
@@ -596,6 +579,12 @@ void setupTime() {
   ntpSyncSuccessful = false;
 }
 
+// -----------------------------
+// Get total uptime including current session
+// -----------------------------
+unsigned long getTotalRuntimeSeconds() {
+  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
+}
 
 // -----------------------------
 // Format total uptime as HH:MM:SS
@@ -629,12 +618,6 @@ void saveUptime() {
 }
 
 
-// -----------------------------
-// Get total uptime including current session
-// -----------------------------
-unsigned long getTotalRuntimeSeconds() {
-  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
-}
 
 // -----------------------------------------------------------------------------
 // Utility
@@ -893,7 +876,7 @@ void advanceDisplayModeSafe() {
 
 //config save after countdown finishes
 bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
 
   File configFile = LittleFS.open("/config.json", "r");
   if (configFile) {
@@ -906,7 +889,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
     }
   }
 
-  JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc.createNestedObject("countdown");
+  JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc["countdown"].to<JsonObject>();
   countdownObj["enabled"] = enabled;
   countdownObj["targetTimestamp"] = targetTimestamp;
   countdownObj["label"] = label;
@@ -937,7 +920,7 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 void saveCustomMessageToConfig(const char *msg) {
   Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
 
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
 
   // Load existing config.json (if present)
   File configFile = LittleFS.open("/config.json", "r");
@@ -1060,7 +1043,7 @@ void setupWebServer() {
       request->send(500, "application/json", "{\"error\":\"Failed to open config.json\"}");
       return;
     }
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, f);
     f.close();
     if (err) {
@@ -1085,189 +1068,178 @@ void setupWebServer() {
     request->send(200, "application/json", response);
   });
 
-  server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request) {
-    Serial.println(F("[WEBSERVER] Request: /save"));
-    DynamicJsonDocument doc(2048);
+  // HANDLER: Save Config (JSON Mode)
+  server.on("/save", HTTP_POST, 
+    // 1. Request Handler (Empty, we handle everything in the body callback)
+    [](AsyncWebServerRequest *request) {},
+    // 2. Upload Handler (NULL)
+    NULL,
+    // 3. Body Handler (Where the JSON arrives)
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+      
+      // Ensure we have received all data (usually comes in one chunk for small config)
+      if (index + len != total) return;
 
-    File configFile = LittleFS.open("/config.json", "r");
-    if (configFile) {
-      Serial.println(F("[WEBSERVER] Existing config.json found, loading for update..."));
-      DeserializationError err = deserializeJson(doc, configFile);
-      configFile.close();
-      if (err) {
-        Serial.print(F("[WEBSERVER] Error parsing existing config.json: "));
-        Serial.println(err.f_str());
+      Serial.println(F("[WEBSERVER] JSON Data received for /save"));
+
+      // 1. Parse the Incoming JSON
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, data, len);
+
+      if (error) {
+        Serial.print(F("[SAVE] JSON Parsing failed: "));
+        Serial.println(error.f_str());
+        request->send(400, "application/json", "{\"error\":\"Invalid JSON body\"}");
+        return;
       }
-    } else {
-      Serial.println(F("[WEBSERVER] config.json not found, starting with empty doc for save."));
-    }
 
-    for (int i = 0; i < request->params(); i++) {
-      const AsyncWebParameter *p = request->getParam(i);
-      String n = p->name();
-      String v = p->value();
+      // 2. Update Global Variables (Using your new helper!)
+      // Integers
+      clockDuration     = getJsonValue(doc, "clockDuration", 10000);
+      weatherDuration   = getJsonValue(doc, "weatherDuration", 10000);
+      brightness        = getJsonValue(doc, "brightness", 5);
+      dimBrightness     = getJsonValue(doc, "dimBrightness", -1);
+      
+      // Dimming Times
+      dimStartHour      = getJsonValue(doc, "dimStartHour", 22);
+      dimStartMinute    = getJsonValue(doc, "dimStartMinute", 0);
+      dimEndHour        = getJsonValue(doc, "dimEndHour", 7);
+      dimEndMinute      = getJsonValue(doc, "dimEndMinute", 0);
 
-      if (n == "brightness") doc[n] = v.toInt();
-      else if (n == "clockDuration") doc[n] = v.toInt();
-      else if (n == "weatherDuration") doc[n] = v.toInt();
-      else if (n == "flipDisplay") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "twelveHourToggle") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "amPMShow") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "showDayOfWeek") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "showDate") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "useHomeAssistant") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "showHumidity") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "colonBlinkEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "dimStartHour") doc[n] = v.toInt();
-      else if (n == "dimStartMinute") doc[n] = v.toInt();
-      else if (n == "dimEndHour") doc[n] = v.toInt();
-      else if (n == "dimEndMinute") doc[n] = v.toInt();
-      else if (n == "dimBrightness") {
-        if (v == "Off" || v == "off") doc[n] = -1;
-        else doc[n] = v.toInt();
-      } else if (n == "showWeatherDescription") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "dimmingEnabled") doc[n] = (v == "true" || v == "on" || v == "1");
-      else if (n == "weatherUnits") doc[n] = v;
-      else if (n == "password") {
-        if (v != "********" && v.length() > 0) {
-          doc[n] = v;  // user entered a new password
-        } else {
-          Serial.println(F("[SAVE] Password unchanged."));
-          // do nothing, keep the one already in doc
-        }
+      // Booleans
+      flipDisplay             = getJsonValue(doc, "flipDisplay", false);
+      twelveHourToggle        = getJsonValue(doc, "twelveHourToggle", false);
+      amPMShow                = getJsonValue(doc, "amPMShow", false);
+      showDayOfWeek           = getJsonValue(doc, "showDayOfWeek", true);
+      showDate                = getJsonValue(doc, "showDate", true);
+      useHomeAssistant        = getJsonValue(doc, "useHomeAssistant", false);
+      showHumidity            = getJsonValue(doc, "showHumidity", false);
+      colonBlinkEnabled       = getJsonValue(doc, "colonBlinkEnabled", true);
+      showWeatherDescription  = getJsonValue(doc, "showWeatherDescription", false);
+      dimmingEnabled          = getJsonValue(doc, "dimmingEnabled", false);
+      autoDimmingEnabled      = getJsonValue(doc, "autoDimmingEnabled", false);
+
+      // Strings
+      strlcpy(language, getJsonValue(doc, "language", "en"), sizeof(language));
+      strlcpy(timeZone, getJsonValue(doc, "timeZone", "M.D.Y"), sizeof(timeZone));
+      strlcpy(weatherUnits, getJsonValue(doc, "weatherUnits", "metric"), sizeof(weatherUnits));
+      
+      // Custom Message
+      if (doc["customMessage"]) {
+          strlcpy(customMessage, doc["customMessage"], sizeof(customMessage));
       }
-      else if (n == "openWeatherApiKey") {
-        if (v != "********************************") {  // ignore mask only
-          doc[n] = v;                                   // save new key (even if empty)
-          Serial.print(F("[SAVE] API key updated: "));
-          Serial.println(v.length() == 0 ? "(empty)" : v);
-        } else {
-          Serial.println(F("[SAVE] API key unchanged (mask ignored)."));
-        }
-      } 
-      else if (n == "homeAssistantApiKey") {
-        if (v != "********************************") {  // ignore mask only
-          doc[n] = v;                                   // save new key (even if empty)
-          Serial.print(F("[SAVE] Home Assistant API key updated: "));
-          Serial.println(v.length() == 0 ? "(empty)" : v);
-        } else {
-          Serial.println(F("[SAVE] Home Assistant API key unchanged (mask ignored)."));
-        }
-      } 
-      else {
-        doc[n] = v;
+
+      // 3. Security Checks (Password & API Keys) - Logic preserved from your old code
+      // We only update if the value is NOT the mask ("****") and NOT empty
+      String newPass = getJsonValue(doc, "password", String(""));
+      if (newPass != "********" && newPass.length() > 0) {
+          strlcpy(password, newPass.c_str(), sizeof(password));
       }
-    }
 
-    bool newCountdownEnabled = (request->hasParam("countdownEnabled", true) && (request->getParam("countdownEnabled", true)->value() == "true" || request->getParam("countdownEnabled", true)->value() == "on" || request->getParam("countdownEnabled", true)->value() == "1"));
-    String countdownDateStr = request->hasParam("countdownDate", true) ? request->getParam("countdownDate", true)->value() : "";
-    String countdownTimeStr = request->hasParam("countdownTime", true) ? request->getParam("countdownTime", true)->value() : "";
-    String countdownLabelStr = request->hasParam("countdownLabel", true) ? request->getParam("countdownLabel", true)->value() : "";
-    bool newIsDramaticCountdown = (request->hasParam("isDramaticCountdown", true) && (request->getParam("isDramaticCountdown", true)->value() == "true" || request->getParam("isDramaticCountdown", true)->value() == "on" || request->getParam("isDramaticCountdown", true)->value() == "1"));
-
-    time_t newTargetTimestamp = 0;
-    if (newCountdownEnabled && countdownDateStr.length() > 0 && countdownTimeStr.length() > 0) {
-      int year = countdownDateStr.substring(0, 4).toInt();
-      int month = countdownDateStr.substring(5, 7).toInt();
-      int day = countdownDateStr.substring(8, 10).toInt();
-      int hour = countdownTimeStr.substring(0, 2).toInt();
-      int minute = countdownTimeStr.substring(3, 5).toInt();
-
-      struct tm tm;
-      tm.tm_year = year - 1900;
-      tm.tm_mon = month - 1;
-      tm.tm_mday = day;
-      tm.tm_hour = hour;
-      tm.tm_min = minute;
-      tm.tm_sec = 0;
-      tm.tm_isdst = -1;
-
-      newTargetTimestamp = mktime(&tm);
-      if (newTargetTimestamp == (time_t)-1) {
-        Serial.println("[SAVE] Error converting countdown date/time to timestamp.");
-        newTargetTimestamp = 0;
-      } else {
-        Serial.printf("[SAVE] Converted countdown target: %s -> %lu\n", countdownDateStr.c_str(), newTargetTimestamp);
+      String newOwKey = getJsonValue(doc, "openWeatherApiKey", String(""));
+      if (newOwKey != "********************************" && newOwKey.length() > 0) {
+          strlcpy(openWeatherApiKey, newOwKey.c_str(), sizeof(openWeatherApiKey));
       }
-    }
 
-    JsonObject countdownObj = doc.createNestedObject("countdown");
-    countdownObj["enabled"] = newCountdownEnabled;
-    countdownObj["targetTimestamp"] = newTargetTimestamp;
-    countdownObj["label"] = countdownLabelStr;
-    countdownObj["isDramaticCountdown"] = newIsDramaticCountdown;
+      String newHaKey = getJsonValue(doc, "homeAssistantApiKey", String(""));
+      if (newHaKey != "********************************" && newHaKey.length() > 0) {
+          strlcpy(homeAssistantApiKey, newHaKey.c_str(), sizeof(homeAssistantApiKey));
+      }
 
-    size_t total = LittleFS.totalBytes();
-    size_t used = LittleFS.usedBytes();
-    Serial.printf("[SAVE] LittleFS total bytes: %llu, used bytes: %llu\n", LittleFS.totalBytes(), LittleFS.usedBytes());
+      // 4. Countdown Logic (Re-implemented for JSON)
+      bool newCountdownEnabled = getJsonValue(doc, "countdownEnabled", false);
+      bool newIsDramatic = getJsonValue(doc, "isDramaticCountdown", false);
+      String cDate = getJsonValue(doc, "countdownDate", String(""));
+      String cTime = getJsonValue(doc, "countdownTime", String(""));
+      String cLabel = getJsonValue(doc, "countdownLabel", String(""));
 
-    if (LittleFS.exists("/config.json")) {
-      Serial.println(F("[SAVE] Renaming /config.json to /config.bak"));
-      LittleFS.rename("/config.json", "/config.bak");
-    }
-    File f = LittleFS.open("/config.json", "w");
-    if (!f) {
-      Serial.println(F("[SAVE] ERROR: Failed to open /config.json for writing!"));
-      DynamicJsonDocument errorDoc(256);
-      errorDoc[F("error")] = "Failed to write config file.";
-      String response;
-      serializeJson(errorDoc, response);
-      request->send(500, "application/json", response);
-      return;
-    }
+      time_t newTargetTimestamp = 0;
+      if (newCountdownEnabled && cDate.length() > 0 && cTime.length() > 0) {
+          // Parse YYYY-MM-DD and HH:MM
+          struct tm tm = {0};
+          tm.tm_year = cDate.substring(0, 4).toInt() - 1900;
+          tm.tm_mon  = cDate.substring(5, 7).toInt() - 1;
+          tm.tm_mday = cDate.substring(8, 10).toInt();
+          tm.tm_hour = cTime.substring(0, 2).toInt();
+          tm.tm_min  = cTime.substring(3, 5).toInt();
+          tm.tm_isdst = -1;
+          
+          newTargetTimestamp = mktime(&tm);
+          if (newTargetTimestamp == (time_t)-1) newTargetTimestamp = 0;
+      }
 
-    size_t bytesWritten = serializeJson(doc, f);
-    Serial.printf("[SAVE] Bytes written to /config.json: %u\n", bytesWritten);
-    f.close();
-    Serial.println(F("[SAVE] /config.json file closed."));
+      // 5. Construct the FINAL Config Object to save to disk
+      // (We reuse 'doc' to serialize the current state of variables)
+      doc.clear();
+      doc["clockDuration"] = clockDuration;
+      doc["weatherDuration"] = weatherDuration;
+      doc["brightness"] = brightness;
+      doc["dimBrightness"] = dimBrightness;
+      doc["flipDisplay"] = flipDisplay;
+      doc["twelveHourToggle"] = twelveHourToggle;
+      doc["amPMShow"] = amPMShow;
+      doc["showDayOfWeek"] = showDayOfWeek;
+      doc["showDate"] = showDate;
+      doc["useHomeAssistant"] = useHomeAssistant;
+      doc["showHumidity"] = showHumidity;
+      doc["colonBlinkEnabled"] = colonBlinkEnabled;
+      doc["autoDimmingEnabled"] = autoDimmingEnabled;
+      doc["dimmingEnabled"] = dimmingEnabled;
+      doc["dimStartHour"] = dimStartHour;
+      doc["dimStartMinute"] = dimStartMinute;
+      doc["dimEndHour"] = dimEndHour;
+      doc["dimEndMinute"] = dimEndMinute;
+      doc["showWeatherDescription"] = showWeatherDescription;
+      doc["weatherUnits"] = weatherUnits;
+      doc["language"] = language;
+      doc["timeZone"] = timeZone;
+      doc["password"] = password;
+      doc["openWeatherApiKey"] = openWeatherApiKey;
+      doc["homeAssistantApiKey"] = homeAssistantApiKey;
+      doc["customMessage"] = customMessage;
 
-    File verify = LittleFS.open("/config.json", "r");
-    if (!verify) {
-      Serial.println(F("[SAVE] ERROR: Failed to open /config.json for reading during verification!"));
-      DynamicJsonDocument errorDoc(256);
-      errorDoc[F("error")] = "Verification failed: Could not re-open config file.";
-      String response;
-      serializeJson(errorDoc, response);
-      request->send(500, "application/json", response);
-      return;
-    }
+      // Add Countdown Nested Object
+      JsonObject cdObj = doc["countdown"].to<JsonObject>();
+      cdObj["enabled"] = newCountdownEnabled;
+      cdObj["targetTimestamp"] = newTargetTimestamp;
+      cdObj["label"] = cLabel;
+      cdObj["isDramaticCountdown"] = newIsDramatic;
 
-    while (verify.available()) {
-      verify.read();
-    }
-    verify.seek(0);
+      // 6. File System Operations (Backup & Save)
+      if (LittleFS.exists("/config.json")) {
+        LittleFS.rename("/config.json", "/config.bak");
+      }
+      
+      File f = LittleFS.open("/config.json", "w");
+      if (!f || serializeJson(doc, f) == 0) {
+        request->send(500, "application/json", "{\"error\":\"Failed to write config file\"}");
+        if (f) f.close();
+        return;
+      }
+      f.close();
 
-    DynamicJsonDocument test(2048);
-    DeserializationError err = deserializeJson(test, verify);
-    verify.close();
+      // 7. Verification (Read it back)
+      File verify = LittleFS.open("/config.json", "r");
+      JsonDocument testDoc;
+      DeserializationError verifyErr = deserializeJson(testDoc, verify);
+      verify.close();
 
-    if (err) {
-      Serial.print(F("[SAVE] Config corrupted after save: "));
-      Serial.println(err.f_str());
-      DynamicJsonDocument errorDoc(256);
-      errorDoc[F("error")] = String("Config corrupted. Reboot cancelled. Error: ") + err.f_str();
-      String response;
-      serializeJson(errorDoc, response);
-      request->send(500, "application/json", response);
-      return;
-    }
+      if (verifyErr) {
+        request->send(500, "application/json", "{\"error\":\"Config corrupted during save\"}");
+        return;
+      }
 
-    Serial.println(F("[SAVE] Config verification successful."));
-    DynamicJsonDocument okDoc(128);
-    strlcpy(customMessage, doc["customMessage"] | "", sizeof(customMessage));
-    okDoc[F("message")] = "Saved successfully. Rebooting...";
-    String response;
-    serializeJson(okDoc, response);
-    request->send(200, "application/json", response);
-    Serial.println(F("[WEBSERVER] Sending success response and scheduling reboot..."));
+      // 8. Success Response
+      request->send(200, "application/json", "{\"status\":\"ok\", \"message\":\"Saved successfully. Rebooting...\"}");
 
-    request->onDisconnect([]() {
-      Serial.println(F("[WEBSERVER] Client disconnected, rebooting ESP..."));
-      saveUptime();
-      delay(100);  // ensure file is written
-      ESP.restart();
+      // 9. REBOOT LOGIC (Matches your original style)
+      request->onDisconnect([]() {
+        Serial.println(F("[WEBSERVER] Client disconnected, rebooting..."));
+        saveUptime();
+        delay(100); 
+        ESP.restart();
+      });
     });
-  });
 
   server.on("/restore", HTTP_POST, [](AsyncWebServerRequest *request) {
     Serial.println(F("[WEBSERVER] Request: /restore"));
@@ -1275,7 +1247,7 @@ void setupWebServer() {
       File src = LittleFS.open("/config.bak", "r");
       if (!src) {
         Serial.println(F("[WEBSERVER] Failed to open /config.bak"));
-        DynamicJsonDocument errorDoc(128);
+        JsonDocument errorDoc;
         errorDoc[F("error")] = "Failed to open backup file.";
         String response;
         serializeJson(errorDoc, response);
@@ -1286,7 +1258,7 @@ void setupWebServer() {
       if (!dst) {
         src.close();
         Serial.println(F("[WEBSERVER] Failed to open /config.json for writing"));
-        DynamicJsonDocument errorDoc(128);
+        JsonDocument errorDoc;
         errorDoc[F("error")] = "Failed to open config for writing.";
         String response;
         serializeJson(errorDoc, response);
@@ -1300,7 +1272,7 @@ void setupWebServer() {
       src.close();
       dst.close();
 
-      DynamicJsonDocument okDoc(128);
+      JsonDocument okDoc;
       okDoc[F("message")] = "✅ Backup restored! Device will now reboot.";
       String response;
       serializeJson(okDoc, response);
@@ -1314,7 +1286,7 @@ void setupWebServer() {
 
     } else {
       Serial.println(F("[WEBSERVER] No backup found"));
-      DynamicJsonDocument errorDoc(128);
+      JsonDocument errorDoc;
       errorDoc[F("error")] = "No backup found.";
       String response;
       serializeJson(errorDoc, response);
@@ -1753,7 +1725,7 @@ void setupWebServer() {
       return;
     }
 
-    DynamicJsonDocument doc(2048);
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, f);
     f.close();
     if (err) {
@@ -2169,7 +2141,7 @@ String buildHomeAssistantURL(String entityName) {
   return base;
 }
 
-String getHAJSON(String entityID, DynamicJsonDocument &doc) {
+String getHAJSON(String entityID, JsonDocument &doc) {
   // Debug: Show what we are sending
   Serial.print(F("[HOME ASSISTANT] Entity: "));
   Serial.println(entityID);
@@ -2218,11 +2190,11 @@ String getHAJSON(String entityID, DynamicJsonDocument &doc) {
 // Function to grab the Entity state
 String getHAEntityState(String entityID) {
   
-  DynamicJsonDocument doc(1536);
+  JsonDocument doc;
   String status = getHAJSON(entityID, doc);
   if (status == "200") {
-    if (doc.containsKey(F("state"))) {
-      String currentState = String(doc[F("state")]);
+    if (doc["state"]) {
+      String currentState = doc["state"].as<String>();
       Serial.printf("[HOME ASSISTANT] Temp: %s\n", currentState.c_str());
       return currentState; // Return text error
     }
@@ -2232,15 +2204,15 @@ String getHAEntityState(String entityID) {
 }
 
 String getHASun(int &sunriseHour, int &sunriseMinute, int &sunsetHour, int &sunsetMinute) {
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
   String status = getHAJSON("sun.sun", doc);
 
   if (status == "200") {
     // 1. Check for attributes
-    if (doc.containsKey(F("attributes"))) {
+    if (doc[F("attributes")]) {
         JsonObject sunAttributes = doc[F("attributes")];
         
-        if (sunAttributes.containsKey(F("next_rising")) && sunAttributes.containsKey(F("next_setting"))) {
+        if (sunAttributes[F("next_rising")] && sunAttributes[F("next_setting")]) {
           const char* riseStr = sunAttributes[F("next_rising")];
           const char* setStr = sunAttributes[F("next_setting")];
 
@@ -2297,7 +2269,7 @@ String getHASun(int &sunriseHour, int &sunriseMinute, int &sunsetHour, int &suns
     }
     
     // Fallback: If attributes missing, try state
-    if (doc.containsKey(F("state"))) {
+    if (doc[F("state")]) {
        String s = doc[F("state")].as<String>();
        Serial.printf("[HOME ASSISTANT] Sun State: %s\n", s.c_str());
        return s; 
@@ -2467,7 +2439,7 @@ void fetchWeather() {
     Serial.print(F("[WEATHER] Payload: "));  // Use F() with Serial.print
     Serial.println(payload);
 
-    DynamicJsonDocument doc(1536);  // Adjust size as needed, use ArduinoJson Assistant
+    JsonDocument doc;  // Adjust size as needed, use ArduinoJson Assistant
     DeserializationError error = deserializeJson(doc, payload);
 
     if (error) {
@@ -2477,7 +2449,7 @@ void fetchWeather() {
       return;
     }
 
-    if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("temp"))) {
+    if (doc["main"] && doc[F("main")][F("temp")]) {
       float temp = doc[F("main")][F("temp")];
       currentTemp = String((int)round(temp)) + "°";
       Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
@@ -2488,19 +2460,19 @@ void fetchWeather() {
       return;
     }
     
-    if (doc.containsKey(F("main")) && doc[F("main")].containsKey(F("humidity"))) {
+    if (doc["main"] && doc["main"][F("humidity")]) {
       currentHumidity = doc[F("main")][F("humidity")];
       Serial.printf("[WEATHER] Humidity: %d%%\n", currentHumidity);
     } else {
       currentHumidity = -1;
     }
 
-    if (doc.containsKey(F("weather")) && doc[F("weather")].is<JsonArray>()) {
+    if (doc[F("weather")] && doc[F("weather")].is<JsonArray>()) {
       JsonObject weatherObj = doc[F("weather")][0];
-      if (weatherObj.containsKey(F("main"))) {
+      if (weatherObj["main"]) {
         mainDesc = weatherObj[F("main")].as<String>();
       }
-      if (weatherObj.containsKey(F("description"))) {
+      if (weatherObj["description"]) {
         detailedDesc = weatherObj[F("description")].as<String>();
       }
     } else {
@@ -2513,9 +2485,9 @@ void fetchWeather() {
     // -----------------------------------------
     // Sunrise/Sunset for Auto Dimming (local time)
     // -----------------------------------------
-    if (doc.containsKey(F("sys"))) {
+    if ( doc[F("sys")]) {
       JsonObject sys = doc[F("sys")];
-      if (sys.containsKey(F("sunrise")) && sys.containsKey(F("sunset"))) {
+      if (sys[F("sunrise")] && sys[F("sunset")]) {
         // OWM gives UTC timestamps
         time_t sunriseUtc = sys[F("sunrise")].as<time_t>();
         time_t sunsetUtc = sys[F("sunset")].as<time_t>();
@@ -2561,7 +2533,7 @@ void fetchWeather() {
     // -----------------------------------------
     if (autoDimmingEnabled && sunriseHour >= 0 && sunsetHour >= 0) {
       File configFile = LittleFS.open("/config.json", "r");
-      DynamicJsonDocument doc(1024);
+      JsonDocument doc;
 
       if (configFile) {
         DeserializationError error = deserializeJson(doc, configFile);
@@ -2696,24 +2668,8 @@ void ensureHtmlFileExists() {
 
 
 // audio callbacks
-void my_audio_info(Audio::msg_t m) {
-    switch(m.e){
-        case Audio::evt_info:           Serial.printf("info: ....... %s\n", m.msg); break;
-        case Audio::evt_eof:            Serial.printf("end of file:  %s\n", m.msg); break;
-        case Audio::evt_bitrate:        Serial.printf("bitrate: .... %s\n", m.msg); break; // icy-bitrate or bitrate from metadata
-        case Audio::evt_icyurl:         Serial.printf("icy URL: .... %s\n", m.msg); break;
-        case Audio::evt_id3data:        Serial.printf("ID3 data: ... %s\n", m.msg); break; // id3-data or metadata
-        case Audio::evt_lasthost:       Serial.printf("last URL: ... %s\n", m.msg); break;
-        case Audio::evt_name:           Serial.printf("station name: %s\n", m.msg); break; // station name or icy-name
-        case Audio::evt_streamtitle:    Serial.printf("stream title: %s\n", m.msg); break;
-        case Audio::evt_icylogo:        Serial.printf("icy logo: ... %s\n", m.msg); break;
-        case Audio::evt_icydescription: Serial.printf("icy descr: .. %s\n", m.msg); break;
-        case Audio::evt_image: for(int i = 0; i < m.vec.size(); i += 2){
-                                        Serial.printf("cover image:  segment %02i, pos %07lu, len %05lu\n", i / 2, m.vec[i], m.vec[i + 1]);} break; // APIC
-        case Audio::evt_lyrics:         Serial.printf("sync lyrics:  %s\n", m.msg); break;
-        case Audio::evt_log   :         Serial.printf("audio_logs:   %s\n", m.msg); break;
-        default:                        Serial.printf("message:..... %s\n", m.msg); break;
-    }
+void audio_info(const char *info) {
+    Serial.print("info        "); Serial.println(info);
 }
 
 // This fires automatically when the song finishes
@@ -2739,7 +2695,6 @@ DisplayMode key:
   6: Custom Message
 */
 void setup() {
-  Audio::audio_info_callback = my_audio_info; // optional
   Serial.begin(115200);
   delay(1000);
   Serial.println();
@@ -2767,39 +2722,23 @@ void setup() {
 
   Serial.println(F("[SETUP] Parola (LED Matrix) initialized"));
 
-  #if defined(ESP32)
-    WiFi.setSleep(false);
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(false);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
 
-    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-      const char *name = nullptr;
-      switch (event) {
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-          name = "GOT_IP";
-          lastWifiConnectTime = millis();
-          break;
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
-        default: return;  // ignore all other events
-      }
-      Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
-    });
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    const char *name = nullptr;
+    switch (event) {
+      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+        name = "GOT_IP";
+        lastWifiConnectTime = millis();
+        break;
+      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: name = "DISCONNECTED"; break;
+      default: return;  // ignore all other events
+    }
+    Serial.printf("[WIFI EVENT] %s (%d)\n", name, event);
+  });
 
-  #elif defined(ESP8266)
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(false);
-
-    mConnectHandler = WiFi.onStationModeConnected([](const WiFiEventStationModeConnected &ev) {
-      Serial.println("[WIFI EVENT] Connected");
-    });
-    mDisConnectHandler = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &ev) {
-      Serial.printf("[WIFI EVENT] Disconnected (Reason: %d)\n", ev.reason);
-    });
-    mGotIpHandler = WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &ev) {
-      Serial.printf("[WIFI EVENT] GOT_IP - IP: %s\n", ev.ip.toString().c_str());
-      lastWifiConnectTime = millis();
-    });
-  #endif
 
   connectWiFi();
 
@@ -2826,7 +2765,6 @@ void setup() {
   
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   audio.setVolume(6); // default 0...21
-  audio.connecttohost("http://stream.antennethueringen.de/live/aac-64/stream.antennethueringen.de/");
 
   // Hostname defaults to esp3232-[MAC]
   ArduinoOTA.setHostname("ESPTimeCast");
@@ -3728,7 +3666,7 @@ void loop() {
 
       if (httpCode == HTTP_CODE_OK) {
         String payload = https.getString();
-        StaticJsonDocument<1024> doc;
+        JsonDocument doc;
         DeserializationError error = deserializeJson(doc, payload);
 
         if (!error && doc.is<JsonArray>() && doc.size() > 0) {
