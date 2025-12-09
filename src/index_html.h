@@ -994,6 +994,7 @@ async function submitConfig(event) {
   let haApiKeyToSend = haApiInput.value;
   if (haApiKeyToSend !== MASK || !hasSavedKey) {
      data.homeAssistantApiKey = haApiKeyToSend;
+
   }
   // WiFi Password Logic (Don't save the mask)
   const ssidInput = document.getElementById('password');
@@ -1003,7 +1004,12 @@ async function submitConfig(event) {
   const wifiPassInput = document.getElementById('password');
   if (wifiPassInput.value !== "********" && wifiPassInput.value !== "") {
       data.password = wifiPassInput.value;
+
   }
+     
+  // --- D. Dimming Logic ---
+  const autoDim = document.getElementById('autoDimmingEnabled').checked;
+  const custDim = document.getElementById('dimmingEnabled').checked;
   
   data.openWeatherCity = document.getElementById('openWeatherCity').value;
   data.openWeatherCountry = document.getElementById('openWeatherCountry').value;
