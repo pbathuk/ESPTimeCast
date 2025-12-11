@@ -7,15 +7,8 @@
 #include "Globals.h"
 #include "Utils.h"
 #include "ConfigManager.h" // Web server needs to save config
-#include "index_html.h"
 
-void setupWebServer();
-void ensureHtmlFileExists();
 void handleCaptivePortal(AsyncWebServerRequest *request);
-
-const char *getSafeHAApiKey();
-const char *getSafeApiKey();
-const char *getSafePassword();
-const char *getSafeSsid();
+void setupWebServer();
 
 #endif

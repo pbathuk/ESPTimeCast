@@ -163,8 +163,6 @@ bool isFiveDigitZip(const char *str) {
   return true;
 }
 
-
-// Returns formatted uptime (for web UI or logs)
 String formatUptime(unsigned long seconds) {
   unsigned long days = seconds / 86400;
   unsigned long hours = (seconds % 86400) / 3600;
@@ -179,3 +177,239 @@ String formatUptime(unsigned long seconds) {
   return String(buf);
 }
 
+void audio_info(const char *info) {
+    Serial.print("info        "); Serial.println(info);
+}
+
+void audio_eof_mp3(const char *info) {
+  Serial.print("EOF (End of File): ");
+  Serial.println(info);
+  
+  isAlarmPlaying = false; // Turn off the switch
+  // audio.stopSong(); // Optional: ensures buffers are flushed
+}
+
+unsigned long getTotalRuntimeSeconds() {
+  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
+}
+
+String formatTotalRuntime() {
+  unsigned long secs = getTotalRuntimeSeconds();
+  unsigned int h = secs / 3600;
+  unsigned int m = (secs % 3600) / 60;
+  unsigned int s = secs % 60;
+  char buf[16];
+  sprintf(buf, "%02u:%02u:%02u", h, m, s);
+  return String(buf);
+}
+
+String getHAJSON(String entityID, JsonDocument &doc) {
+  // Debug: Show what we are sending
+  Serial.print(F("[HOME ASSISTANT] Entity: "));
+  Serial.println(entityID);
+
+  Serial.print(F("[HOME ASSISTANT] URL: "));  // Use F() with Serial.print
+  String url = buildHomeAssistantURL(entityID);
+  Serial.println(url);
+  
+  WiFiClientSecure client;  // use secure client for HTTPS
+  client.stop();            // ensure previous session closed
+  yield();                  // Allow OS to process socket closure
+  client.setInsecure();     // no cert validation
+  HTTPClient http;          // Create an HTTPClient object
+  http.begin(client, url);  // Pass the WiFiClient object and the URL
+  http.setTimeout(10000);   // Sets both connection and stream timeout to 10 seconds
+  http.addHeader("content-type", "application/json"); // Ensures that the content returned is in json format 
+  http.addHeader("User-Agent", "ESPTimeCast"); // Sets the User-Agent to ESPTimeCast
+  http.addHeader("Authorization", String("Bearer ") + homeAssistantApiKey); // Add the API key to the header
+  Serial.println(F("[HOME ASSISTANT] Sending GET request..."));
+  int httpCode = http.GET();  // Send the GET request
+  if (httpCode != HTTP_CODE_OK){
+    Serial.printf("[HOME ASSISTANT] HTTP GET failed, error code: %d, reason: %s\n",
+                  httpCode, http.errorToString(httpCode).c_str());
+    Serial.println(F("[HOME ASSISTANT] Home Assistant requested, but not configured"));
+    Serial.println(F("[HOME ASSISTANT] Setting Use Home Assistant flag to off"));
+    return "Error: No Entity"; // Return text error
+  }
+  Serial.println(F("[HOME ASSISTANT] HTTP 200 OK. Reading payload..."));
+
+  String payload = http.getString();
+  http.end();
+  Serial.println(F("[HOME ASSISTANT] Response received."));
+  Serial.print(F("[HOME ASSISTANT] Payload: "));  // Use F() with Serial.print
+  Serial.println(payload);
+  doc.clear();
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.print(F("[HOME ASSISTANT] JSON parse error: "));
+    Serial.println(error.f_str());
+    return "Error: Parsing Error"; // Return text error
+  }
+  return "200";
+}
+
+String getHAEntityState(String entityID) {
+  
+  JsonDocument doc;
+  String status = getHAJSON(entityID, doc);
+  if (status == "200") {
+    if (doc["state"]) {
+      String currentState = doc["state"].as<String>();
+      Serial.printf("[HOME ASSISTANT] Temp: %s\n", currentState.c_str());
+      return currentState; // Return text error
+    }
+  }
+  Serial.println(F("[HOME ASSISTANT] No State Returned"));
+  return "Error: No State"; 
+}
+
+String buildWeatherURL() {
+  String base = "https://api.openweathermap.org/data/2.5/weather?";
+
+  float lat = atof(openWeatherCity);
+  float lon = atof(openWeatherCountry);
+
+  bool latValid = isNumber(openWeatherCity) && isNumber(openWeatherCountry) && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0;
+
+  // Create encoded copies
+  String cityEncoded = String(openWeatherCity);
+  String countryEncoded = String(openWeatherCountry);
+  cityEncoded.replace(" ", "%20");
+  countryEncoded.replace(" ", "%20");
+
+  if (latValid) {
+    base += "lat=" + String(lat, 8) + "&lon=" + String(lon, 8);
+  } else if (isFiveDigitZip(openWeatherCity) && String(openWeatherCountry).equalsIgnoreCase("US")) {
+    base += "zip=" + String(openWeatherCity) + "," + String(openWeatherCountry);
+  } else {
+    base += "q=" + cityEncoded + "," + countryEncoded;
+  }
+
+  base += "&appid=" + String(openWeatherApiKey);
+  base += "&units=" + String(weatherUnits);
+
+  String langForAPI = String(language);
+  if (langForAPI == "eo" || langForAPI == "ga" || langForAPI == "sw" || langForAPI == "ja") {
+    langForAPI = "en";
+  }
+  base += "&lang=" + langForAPI;
+
+  return base;
+}
+
+String buildHomeAssistantURL(String entityName) {
+  // 1. Check if the URL is actually empty (looking at the first character)
+  if (homeAssistantURL[0] == '\0') {
+    return ""; // Return empty string if no URL is set
+  }
+
+  String url = String(homeAssistantURL);
+
+  // 2. Remove ANY trailing slashes (e.g., "http://hass.local///")
+  while (url.endsWith("/")) {
+    url.remove(url.length() - 1);
+  }
+
+  // 3. Build the rest
+  url += "/api/states/";
+  url += entityName;
+  
+  return url;
+}
+
+const char *getSafeSsid() {
+  if (isAPMode && strlen(ssid) == 0) {
+    return "";
+  } else {
+    return isAPMode ? "********" : ssid;
+  }
+}
+
+const char *getSafePassword() {
+  if (strlen(password) == 0) {  // No password set yet — return empty string for fresh install
+    return "";
+  } else {  // Password exists — mask it in the web UI
+    return "********";
+  }
+}
+
+const char *getSafeApiKey() {
+  if (strlen(openWeatherApiKey) == 0) {
+    return "";
+  } else {
+    return "********************************";  // Always masked, even in AP mode
+  }
+}
+
+const char *getSafeHAApiKey() {
+  if (strlen(homeAssistantApiKey) == 0) {
+    return "";
+  } else {
+    return "********************************";  // Always masked, even in AP mode
+  }
+}
+
+void ensureHtmlFileExists() {
+  Serial.println(F("[FS] Checking for /index.html on LittleFS..."));
+
+  // Length of embedded HTML in PROGMEM
+  size_t expectedSize = strlen_P(index_html);
+
+  // If the file exists, verify size before deciding to trust it
+  if (LittleFS.exists("/index.html")) {
+    File f = LittleFS.open("/index.html", "r");
+
+    if (!f) {
+      Serial.println(F("[FS] ERROR: /index.html exists but failed to open! Will rewrite."));
+    } else {
+      size_t actualSize = f.size();
+      f.close();
+
+      if (actualSize == expectedSize) {
+        Serial.printf("[FS] /index.html found (size OK: %u bytes). Using file system version.\n", actualSize);
+        return;  // STOP HERE — file is good
+      }
+
+      Serial.printf(
+        "[FS] /index.html size mismatch! Expected %u bytes, found %u. Rewriting...\n",
+        expectedSize, actualSize);
+    }
+  } else {
+    Serial.println(F("[FS] /index.html NOT found. Writing embedded content to LittleFS..."));
+  }
+
+  // -------------------------------
+  // Write embedded HTML to LittleFS
+  // -------------------------------
+
+  File f = LittleFS.open("/index.html", "w");
+  if (!f) {
+    Serial.println(F("[FS] ERROR: Failed to create /index.html for writing!"));
+    return;
+  }
+
+  size_t htmlLength = expectedSize;
+  size_t bytesWritten = 0;
+
+  for (size_t i = 0; i < htmlLength; i++) {
+    char c = pgm_read_byte_near(index_html + i);
+
+    if (f.write((uint8_t *)&c, 1) == 1) {
+      bytesWritten++;
+    } else {
+      Serial.printf("[FS] Write failure at character %u. Aborting write.\n", i);
+      f.close();
+      return;
+    }
+  }
+
+  f.close();
+
+  if (bytesWritten == htmlLength) {
+    Serial.printf("[FS] Successfully wrote %u bytes to /index.html.\n", bytesWritten);
+  } else {
+    Serial.printf("[FS] WARNING: Only wrote %u of %u bytes to /index.html (might be incomplete).\n",
+                  bytesWritten, htmlLength);
+  }
+}

@@ -1,7 +1,6 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <Arduino.h>
 #include <MD_Parola.h>
 #include <Audio.h>
 #include <MD_MAX72xx.h>
@@ -171,4 +170,5 @@ extern bool descScrolling;
 extern const unsigned long descriptionDuration;
 extern unsigned long descScrollEndTime;
 extern const unsigned long descriptionScrollPause;
+
 #endif

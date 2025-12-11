@@ -1,20 +1,12 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <Arduino.h>
-#include <MD_Parola.h> // Needed for textEffect_t
 #include <ArduinoJson.h>  // Needed for the getJsonValue template
+#include <HTTPClient.h>
+#include <LittleFS.h>
+#include "index_html.h"
 #include "Globals.h"
 
-// Declare your helpers here
-bool isNumber(const char *str);
-textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isFlipped);
-void advanceDisplayMode();
-void advanceDisplayModeSafe();
-bool isFiveDigitZip(const char *str);
-String formatUptime(unsigned long seconds);
-// Universal helper for ArduinoJson v7
-// 'obj' can be the main doc, or a nested object like doc["countdown"]
 template <typename T>
 T getJsonValue(JsonVariantConst obj, const char* key, T defaultValue) {
     // ArduinoJson v7 handles null checks automatically.
@@ -29,5 +21,24 @@ T getJsonValue(JsonVariantConst obj, const char* key, T defaultValue) {
     Serial.println(defaultValue);
     return defaultValue;
 }
+textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isFlipped);
+void advanceDisplayMode();
+void advanceDisplayModeSafe();
+bool isNumber(const char *str);
+bool isFiveDigitZip(const char *str);
+String formatUptime(unsigned long seconds);
+void audio_info(const char *info);
+void audio_eof_mp3(const char *info);
+unsigned long getTotalRuntimeSeconds();
+String formatTotalRuntime();
+String getHAJSON(String entityID, JsonDocument &doc);
+String getHAEntityState(String entityID);
+String buildWeatherURL();
+String buildHomeAssistantURL(String entityName);
+const char *getSafeHAApiKey();
+const char *getSafeApiKey();
+const char *getSafePassword();
+const char *getSafeSsid();
+void ensureHtmlFileExists();
 
 #endif

@@ -1,30 +1,5 @@
 #include "ConfigManager.h"
 
-
-// -----------------------------
-// Get total uptime including current session
-// -----------------------------
-unsigned long getTotalRuntimeSeconds() {
-  return totalUptimeSeconds + (millis() - bootMillis) / 1000;
-}
-
-// -----------------------------
-// Format total uptime as HH:MM:SS
-// -----------------------------
-String formatTotalRuntime() {
-  unsigned long secs = getTotalRuntimeSeconds();
-  unsigned int h = secs / 3600;
-  unsigned int m = (secs % 3600) / 60;
-  unsigned int s = secs % 60;
-  char buf[16];
-  sprintf(buf, "%02u:%02u:%02u", h, m, s);
-  return String(buf);
-}
-
-
-// -----------------------------------------------------------------------------
-// Configuration Load & Save
-// -----------------------------------------------------------------------------
 void loadConfig() {
   Serial.println(F("[CONFIG] Loading configuration..."));
 
@@ -96,7 +71,7 @@ void loadConfig() {
     return;
   }
 
-  JsonDocument doc;  // Size based on ArduinoJson Assistant + buffer
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, configFile);
   configFile.close();
 
@@ -187,10 +162,6 @@ void loadConfig() {
   Serial.println(F("[CONFIG] Configuration loaded."));
 }
 
-
-// -----------------------------------------------------------------------------
-// Utility
-// -----------------------------------------------------------------------------
 void printConfigToSerial() {
   Serial.println(F("========= Loaded Configuration ========="));
   Serial.print(F("WiFi SSID: "));
@@ -306,10 +277,6 @@ void printConfigToSerial() {
   Serial.println();
 }
 
-
-// -----------------------------
-// Load uptime from LittleFS
-// -----------------------------
 void loadUptime() {
   if (LittleFS.exists("/uptime.dat")) {
     File f = LittleFS.open("/uptime.dat", "r");
@@ -331,10 +298,6 @@ void loadUptime() {
   }
 }
 
-
-// -----------------------------
-// Save uptime to LittleFS
-// -----------------------------
 void saveUptime() {
   // Use getTotalRuntimeSeconds() to include current session
   totalUptimeSeconds = getTotalRuntimeSeconds();
@@ -349,8 +312,6 @@ void saveUptime() {
     Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
   }
 }
-
-
 
 void saveCustomMessageToConfig(const char *msg) {
   Serial.println(F("[CONFIG] Updating customMessage in config.json..."));
@@ -387,7 +348,6 @@ void saveCustomMessageToConfig(const char *msg) {
   Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg, bytesWritten);
 }
 
-//config save after countdown finishes
 bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
   JsonDocument doc;
 

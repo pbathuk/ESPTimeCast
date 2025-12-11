@@ -25,9 +25,11 @@ String mainDesc = "";
 String detailedDesc = "";
 
 // Timing and display settings
+int brightness = 7;
 unsigned long clockDuration = 10000;
 unsigned long weatherDuration = 5000;
-int brightness = 7;
+bool displayOff = false;
+
 bool flipDisplay = false;
 bool twelveHourToggle = false;
 bool amPMShow = false;
@@ -50,7 +52,6 @@ bool isAlarmPlaying = false;
 
 // Dimming
 bool dimmingEnabled = false;
-bool displayOff = false;
 bool displayOffByDimming = false;
 bool displayOffByBrightness = false;
 int dimStartHour = 18;  // 6pm default

@@ -1,46 +1,33 @@
+#include <Arduino.h>
+#include <ArduinoOTA.h>
 #include "Globals.h"       // Global variables and constants
-#include "Utils.h"  // Languages for the Months of the Year
+#include "Utils.h"      // Utility functions  
 #include "ConfigManager.h"
 #include "NetworkManager.h"
 #include "WeatherManager.h"
 #include "WebHandler.h"
 
-#include <Button2.h>
-#include <ArduinoOTA.h>
 
 #include "mfactoryfont.h"   // Custom font
 #include "tz_lookup.h"      // Timezone lookup, do not duplicate mapping here!
 #include "days_lookup.h"    // Languages for the Days of the Week
 #include "months_lookup.h"  // Languages for the Months of the Year
 
-// audio callbacks
-void audio_info(const char *info) {
-    Serial.print("info        "); Serial.println(info);
-}
-
-// This fires automatically when the song finishes
-void audio_eof_mp3(const char *info) {
-  Serial.print("EOF (End of File): ");
-  Serial.println(info);
-  
-  isAlarmPlaying = false; // Turn off the switch
-  // audio.stopSong(); // Optional: ensures buffers are flushed
-}
-
-// -----------------------------------------------------------------------------
-// Main setup() and loop()
-// -----------------------------------------------------------------------------
-/*
-DisplayMode key:
-  0: Clock
-  1: Weather
-  2: Weather Description
-  3: Countdown
-  4: Nightscout
-  5: Date
-  6: Custom Message
-*/
 void setup() {
+    
+  // -----------------------------------------------------------------------------
+  // Main setup() and loop()
+  // -----------------------------------------------------------------------------
+  /*
+  DisplayMode key:
+    0: Clock
+    1: Weather
+    2: Weather Description
+    3: Countdown
+    4: Nightscout
+    5: Date
+    6: Custom Message
+  */
   Serial.begin(115200);
   delay(1000);
   Serial.println();
