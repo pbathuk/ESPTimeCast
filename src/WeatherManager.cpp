@@ -1,11 +1,10 @@
 #include "WeatherManager.h"
 
-
-
 void fetchWeather() {
   if (millis() - lastWifiConnectTime < 5000) {
-    Serial.println(F("[WEATHER] Skipped: Network just reconnected. Letting it stabilize..."));
-    return;  // Stop execution if connection is less than 5 seconds old
+    Serial.println(F("[WEATHER] Skipped: Network just reconnected. Letting it "
+                     "stabilize..."));
+    return; // Stop execution if connection is less than 5 seconds old
   }
 
   Serial.println(F("[WEATHER] Fetching weather data..."));
@@ -16,81 +15,89 @@ void fetchWeather() {
     return;
   }
 
-  if (useHomeAssistant && (!homeAssistantURL || !homeAssistantApiKey || !haTempSensor)) {
+  if (useHomeAssistant &&
+      (!homeAssistantURL || !homeAssistantApiKey || !haTempSensor)) {
     Serial.println(F("[WEATHER] Home Assistant requested, but not configured"));
     Serial.println(F("[WEATHER] Setting Use Home Assistant flag to off"));
     useHomeAssistant = false;
     // Not returning as going to fall back to OpenAPI
   }
 
-  if (!useHomeAssistant && (!openWeatherApiKey || strlen(openWeatherApiKey) != 32)) {
-    Serial.println(F("[WEATHER] Skipped: Invalid API key (must be exactly 32 characters)"));
+  if (!useHomeAssistant &&
+      (!openWeatherApiKey || strlen(openWeatherApiKey) != 32)) {
+    Serial.println(F(
+        "[WEATHER] Skipped: Invalid API key (must be exactly 32 characters)"));
     weatherAvailable = false;
     weatherFetched = false;
     return;
   }
-  if (!useHomeAssistant && (!(strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0))) {
+  if (!useHomeAssistant &&
+      (!(strlen(openWeatherCity) > 0 && strlen(openWeatherCountry) > 0))) {
     Serial.println(F("[WEATHER] Skipped: City or Country is empty."));
     weatherAvailable = false;
     return;
   }
   if (useHomeAssistant) {
     // --- 1. TEMPERATURE ---
-    String rawTempStr = getHAEntityState(haTempSensor); // Returns e.g. "4.9°" or "unknown°"
+    String rawTempStr =
+        getHAEntityState(haTempSensor); // Returns e.g. "4.9°" or "unknown°"
     String lowerTemp = rawTempStr;
     lowerTemp.toLowerCase();
 
     // Check for invalid HA states
-    if (rawTempStr.startsWith("Error:") || 
-        lowerTemp.indexOf("unknown") >= 0 || 
+    if (rawTempStr.startsWith("Error:") || lowerTemp.indexOf("unknown") >= 0 ||
         lowerTemp.indexOf("unavailable") >= 0) {
-      
-      Serial.println(F("[HOME ASSISTANT] Temp sensor is unknown/unavailable. Skipping weather display."));
+
+      Serial.println(F("[HOME ASSISTANT] Temp sensor is unknown/unavailable. "
+                       "Skipping weather display."));
       weatherAvailable = false;
-    } 
-    else {
-      // Valid data found! 
+    } else {
+      // Valid data found!
       // .toFloat() parses "4.9" and ignores the trailing "°"
-      float tempVal = rawTempStr.toFloat(); 
-      
+      float tempVal = rawTempStr.toFloat();
+
       // Round to nearest int, convert to String, and add symbol back manually
       currentTemp = String((int)round(tempVal)) + "°";
-      
+
       weatherAvailable = true;
-      Serial.printf("[HOME ASSISTANT] Temp Rounded: %s (Raw: %s)\n", currentTemp.c_str(), rawTempStr.c_str());
+      Serial.printf("[HOME ASSISTANT] Temp Rounded: %s (Raw: %s)\n",
+                    currentTemp.c_str(), rawTempStr.c_str());
     }
 
     // --- 2. HUMIDITY ---
-    if (useHomeAssistant && weatherAvailable && haHumiditySensor && showHumidity) {
-      String rawHumStr = getHAEntityState(haHumiditySensor); 
+    if (useHomeAssistant && weatherAvailable && haHumiditySensor &&
+        showHumidity) {
+      String rawHumStr = getHAEntityState(haHumiditySensor);
       String lowerHum = rawHumStr;
       lowerHum.toLowerCase();
 
-      if (rawHumStr.startsWith("Error:") || 
-          lowerHum.indexOf("unknown") >= 0 || 
+      if (rawHumStr.startsWith("Error:") || lowerHum.indexOf("unknown") >= 0 ||
           lowerHum.indexOf("unavailable") >= 0) {
-        
-        Serial.println(F("[HOME ASSISTANT] Humidity unavailable. Hiding humidity."));
+
+        Serial.println(
+            F("[HOME ASSISTANT] Humidity unavailable. Hiding humidity."));
         currentHumidity = -1;
-      } 
-      else {
+      } else {
         // .toFloat() parses "55.4" and ignores "°"
         currentHumidity = (int)round(rawHumStr.toFloat());
-        Serial.printf("[HOME ASSISTANT] Humidity Parsed: %d%% (Raw: %s)\n", currentHumidity, rawHumStr.c_str());
+        Serial.printf("[HOME ASSISTANT] Humidity Parsed: %d%% (Raw: %s)\n",
+                      currentHumidity, rawHumStr.c_str());
       }
     }
 
     // --- 3. SUNRISE/SUNSET (Auto Dimming) ---
     if (useHomeAssistant && autoDimmingEnabled) {
-      String status = getHASun(sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
-      
+      String status =
+          getHASun(sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+
       if (status.startsWith("Error:")) {
-        Serial.println(F("[HOME ASSISTANT] Home Assistant sun.sun not available"));
-      }
-      else {
+        Serial.println(
+            F("[HOME ASSISTANT] Home Assistant sun.sun not available"));
+      } else {
         if (sunriseHour >= 0 && sunsetHour >= 0) {
-             Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
-                          sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+          Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): "
+                        "%02d:%02d | %02d:%02d\n",
+                        sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
         } else {
           Serial.println(F("[HOME ASSISTANT] Sunrise/Sunset not found"));
         }
@@ -100,119 +107,121 @@ void fetchWeather() {
   if (!useHomeAssistant) {
     Serial.println(F("[WEATHER] Connecting to OpenWeatherMap..."));
     String url = buildWeatherURL();
-    Serial.print(F("[WEATHER] URL: "));  // Use F() with Serial.print
+    Serial.print(F("[WEATHER] URL: ")); // Use F() with Serial.print
     Serial.println(url);
 
-    WiFiClientSecure client;  // use secure client for HTTPS
-    client.stop();            // ensure previous session closed
-    yield();                  // Allow OS to process socket closure
-    client.setInsecure();     // no cert validation
-    HTTPClient http;          // Create an HTTPClient object
-    http.begin(client, url);  // Pass the WiFiClient object and the URL
-    http.setTimeout(10000);   // Sets both connection and stream timeout to 10 seconds
+    WiFiClientSecure client; // use secure client for HTTPS
+    client.stop();           // ensure previous session closed
+    yield();                 // Allow OS to process socket closure
+    client.setInsecure();    // no cert validation
+    HTTPClient http;         // Create an HTTPClient object
+    http.begin(client, url); // Pass the WiFiClient object and the URL
+    http.setTimeout(
+        10000); // Sets both connection and stream timeout to 10 seconds
     Serial.println(F("[WEATHER] Sending GET request..."));
-    int httpCode = http.GET();  // Send the GET request
-    if (httpCode != HTTP_CODE_OK){
+    int httpCode = http.GET(); // Send the GET request
+    if (httpCode != HTTP_CODE_OK) {
       Serial.printf("[WEATHER] HTTP GET failed, error code: %d, reason: %s\n",
                     httpCode, http.errorToString(httpCode).c_str());
       weatherAvailable = false;
       weatherFetched = false;
     }
-    if (httpCode == HTTP_CODE_OK) {  // Check if HTTP response code is 200 (OK)
-    Serial.println(F("[WEATHER] HTTP 200 OK. Reading payload..."));
+    if (httpCode == HTTP_CODE_OK) { // Check if HTTP response code is 200 (OK)
+      Serial.println(F("[WEATHER] HTTP 200 OK. Reading payload..."));
 
-    String payload = http.getString();
-    http.end();
-    Serial.println(F("[WEATHER] Response received."));
-    Serial.print(F("[WEATHER] Payload: "));  // Use F() with Serial.print
-    Serial.println(payload);
+      String payload = http.getString();
+      http.end();
+      Serial.println(F("[WEATHER] Response received."));
+      Serial.print(F("[WEATHER] Payload: ")); // Use F() with Serial.print
+      Serial.println(payload);
 
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, payload);
+      JsonDocument doc;
+      DeserializationError error = deserializeJson(doc, payload);
 
-    if (error) {
-      Serial.print(F("[WEATHER] JSON parse error: "));
-      Serial.println(error.f_str());
-      weatherAvailable = false;
-      return;
-    }
-
-    if (doc["main"] && doc[F("main")][F("temp")]) {
-      float temp = doc[F("main")][F("temp")];
-      currentTemp = String((int)round(temp)) + "°";
-      Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
-      weatherAvailable = true;
-    } else {
-      Serial.println(F("[WEATHER] Temperature not found in JSON payload"));
-      weatherAvailable = false;
-      return;
-    }
-    
-    if (doc["main"] && doc["main"][F("humidity")]) {
-      currentHumidity = doc[F("main")][F("humidity")];
-      Serial.printf("[WEATHER] Humidity: %d%%\n", currentHumidity);
-    } else {
-      currentHumidity = -1;
-    }
-
-    if (doc[F("weather")] && doc[F("weather")].is<JsonArray>()) {
-      JsonObject weatherObj = doc[F("weather")][0];
-      if (weatherObj["main"]) {
-        mainDesc = weatherObj[F("main")].as<String>();
+      if (error) {
+        Serial.print(F("[WEATHER] JSON parse error: "));
+        Serial.println(error.f_str());
+        weatherAvailable = false;
+        return;
       }
-      if (weatherObj["description"]) {
-        detailedDesc = weatherObj[F("description")].as<String>();
-      }
-    } else {
-      Serial.println(F("[WEATHER] Weather description not found in JSON payload"));
-    }
 
-    weatherDescription = normalizeWeatherDescription(detailedDesc);
-    Serial.printf("[WEATHER] Description used: %s\n", weatherDescription.c_str());
-
-    // -----------------------------------------
-    // Sunrise/Sunset for Auto Dimming (local time)
-    // -----------------------------------------
-    if ( doc[F("sys")]) {
-      JsonObject sys = doc[F("sys")];
-      if (sys[F("sunrise")] && sys[F("sunset")]) {
-        // OWM gives UTC timestamps
-        time_t sunriseUtc = sys[F("sunrise")].as<time_t>();
-        time_t sunsetUtc = sys[F("sunset")].as<time_t>();
-
-        // Get local timezone offset (in seconds)
-        long tzOffset = 0;
-        struct tm local_tm;
-        time_t now = time(nullptr);
-        if (localtime_r(&now, &local_tm)) {
-          tzOffset = mktime(&local_tm) - now;
-        }
-
-        // Convert UTC → local
-        time_t sunriseLocal = sunriseUtc + tzOffset;
-        time_t sunsetLocal = sunsetUtc + tzOffset;
-
-        // Break into hour/minute
-        struct tm tmSunrise, tmSunset;
-        localtime_r(&sunriseLocal, &tmSunrise);
-        localtime_r(&sunsetLocal, &tmSunset);
-
-        sunriseHour = tmSunrise.tm_hour;
-        sunriseMinute = tmSunrise.tm_min;
-        sunsetHour = tmSunset.tm_hour;
-        sunsetMinute = tmSunset.tm_min;
-
-        Serial.printf("[WEATHER] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
-                      sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+      if (doc["main"] && doc[F("main")][F("temp")]) {
+        float temp = doc[F("main")][F("temp")];
+        currentTemp = String((int)round(temp)) + "°";
+        Serial.printf("[WEATHER] Temp: %s\n", currentTemp.c_str());
+        weatherAvailable = true;
       } else {
-        Serial.println(F("[WEATHER] Sunrise/Sunset not found in JSON."));
+        Serial.println(F("[WEATHER] Temperature not found in JSON payload"));
+        weatherAvailable = false;
+        return;
       }
-    } else {
-      Serial.println(F("[WEATHER] 'sys' object not found in JSON payload."));
-    }
-  }
 
-  
+      if (doc["main"] && doc["main"][F("humidity")]) {
+        currentHumidity = doc[F("main")][F("humidity")];
+        Serial.printf("[WEATHER] Humidity: %d%%\n", currentHumidity);
+      } else {
+        currentHumidity = -1;
+      }
+
+      if (doc[F("weather")] && doc[F("weather")].is<JsonArray>()) {
+        JsonObject weatherObj = doc[F("weather")][0];
+        if (weatherObj["main"]) {
+          mainDesc = weatherObj[F("main")].as<String>();
+        }
+        if (weatherObj["description"]) {
+          detailedDesc = weatherObj[F("description")].as<String>();
+        }
+      } else {
+        Serial.println(
+            F("[WEATHER] Weather description not found in JSON payload"));
+      }
+
+      weatherDescription = normalizeWeatherDescription(detailedDesc);
+      Serial.printf("[WEATHER] Description used: %s\n",
+                    weatherDescription.c_str());
+
+      // -----------------------------------------
+      // Sunrise/Sunset for Auto Dimming (local time)
+      // -----------------------------------------
+      if (doc[F("sys")]) {
+        JsonObject sys = doc[F("sys")];
+        if (sys[F("sunrise")] && sys[F("sunset")]) {
+          // OWM gives UTC timestamps
+          time_t sunriseUtc = sys[F("sunrise")].as<time_t>();
+          time_t sunsetUtc = sys[F("sunset")].as<time_t>();
+
+          // Get local timezone offset (in seconds)
+          long tzOffset = 0;
+          struct tm local_tm;
+          time_t now = time(nullptr);
+          if (localtime_r(&now, &local_tm)) {
+            tzOffset = mktime(&local_tm) - now;
+          }
+
+          // Convert UTC → local
+          time_t sunriseLocal = sunriseUtc + tzOffset;
+          time_t sunsetLocal = sunsetUtc + tzOffset;
+
+          // Break into hour/minute
+          struct tm tmSunrise, tmSunset;
+          localtime_r(&sunriseLocal, &tmSunrise);
+          localtime_r(&sunsetLocal, &tmSunset);
+
+          sunriseHour = tmSunrise.tm_hour;
+          sunriseMinute = tmSunrise.tm_min;
+          sunsetHour = tmSunset.tm_hour;
+          sunsetMinute = tmSunset.tm_min;
+
+          Serial.printf("[WEATHER] Adjusted Sunrise/Sunset (local): %02d:%02d "
+                        "| %02d:%02d\n",
+                        sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+        } else {
+          Serial.println(F("[WEATHER] Sunrise/Sunset not found in JSON."));
+        }
+      } else {
+        Serial.println(F("[WEATHER] 'sys' object not found in JSON payload."));
+      }
+    }
 
     // -----------------------------------------
     // Save updated sunrise/sunset to config.json
@@ -228,9 +237,12 @@ void fetchWeather() {
         if (!error) {
           // Check if ANY value has changed
           bool valuesChanged =
-            (doc["sunriseHour"].as<int>() != sunriseHour || doc["sunriseMinute"].as<int>() != sunriseMinute || doc["sunsetHour"].as<int>() != sunsetHour || doc["sunsetMinute"].as<int>() != sunsetMinute);
+              (doc["sunriseHour"].as<int>() != sunriseHour ||
+               doc["sunriseMinute"].as<int>() != sunriseMinute ||
+               doc["sunsetHour"].as<int>() != sunsetHour ||
+               doc["sunsetMinute"].as<int>() != sunsetMinute);
 
-          if (valuesChanged) {  // Only write if a change occurred
+          if (valuesChanged) { // Only write if a change occurred
             doc["sunriseHour"] = sunriseHour;
             doc["sunriseMinute"] = sunriseMinute;
             doc["sunsetHour"] = sunsetHour;
@@ -240,22 +252,25 @@ void fetchWeather() {
             if (f) {
               serializeJsonPretty(doc, f);
               f.close();
-              Serial.println(F("[WEATHER] SAVED NEW sunrise/sunset to config.json (Values changed)"));
+              Serial.println(F("[WEATHER] SAVED NEW sunrise/sunset to "
+                               "config.json (Values changed)"));
             } else {
-              Serial.println(F("[WEATHER] Failed to write updated sunrise/sunset to config.json"));
+              Serial.println(F("[WEATHER] Failed to write updated "
+                               "sunrise/sunset to config.json"));
             }
           } else {
-            Serial.println(F("[WEATHER] Sunrise/Sunset unchanged, skipping config save."));
+            Serial.println(
+                F("[WEATHER] Sunrise/Sunset unchanged, skipping config save."));
           }
           // --- END MODIFIED COMPARISON LOGIC ---
 
         } else {
-          Serial.println(F("[WEATHER] JSON parse error when saving updated sunrise/sunset"));
+          Serial.println(F(
+              "[WEATHER] JSON parse error when saving updated sunrise/sunset"));
         }
       }
     }
-
-  } 
+  }
 }
 
 String normalizeWeatherDescription(String str) {
@@ -267,12 +282,12 @@ String normalizeWeatherDescription(String str) {
   str.replace("д", "d");
   str.replace("ђ", "dj");
   str.replace("е", "e");
-  str.replace("ё", "e");  // Russian
+  str.replace("ё", "e"); // Russian
   str.replace("ж", "z");
   str.replace("з", "z");
   str.replace("и", "i");
-  str.replace("й", "j");  // Russian
-  str.replace("ј", "j");  // Serbian
+  str.replace("й", "j"); // Russian
+  str.replace("ј", "j"); // Serbian
   str.replace("к", "k");
   str.replace("л", "l");
   str.replace("љ", "lj");
@@ -292,11 +307,11 @@ String normalizeWeatherDescription(String str) {
   str.replace("ч", "c");
   str.replace("џ", "dz");
   str.replace("ш", "s");
-  str.replace("щ", "sh");  // Russian
-  str.replace("ы", "y");   // Russian
-  str.replace("э", "e");   // Russian
-  str.replace("ю", "yu");  // Russian
-  str.replace("я", "ya");  // Russian
+  str.replace("щ", "sh"); // Russian
+  str.replace("ы", "y");  // Russian
+  str.replace("э", "e");  // Russian
+  str.replace("ю", "yu"); // Russian
+  str.replace("я", "ya"); // Russian
 
   // Latin diacritics → ASCII
   str.replace("å", "a");
@@ -401,80 +416,83 @@ String normalizeWeatherDescription(String str) {
   return result;
 }
 
-String getHASun(int &sunriseHour, int &sunriseMinute, int &sunsetHour, int &sunsetMinute) {
+String getHASun(int &sunriseHour, int &sunriseMinute, int &sunsetHour,
+                int &sunsetMinute) {
   JsonDocument doc;
   String status = getHAJSON("sun.sun", doc);
 
   if (status == "200") {
     // 1. Check for attributes
     if (doc[F("attributes")]) {
-        JsonObject sunAttributes = doc[F("attributes")];
-        
-        if (sunAttributes[F("next_rising")] && sunAttributes[F("next_setting")]) {
-          const char* riseStr = sunAttributes[F("next_rising")];
-          const char* setStr = sunAttributes[F("next_setting")];
+      JsonObject sunAttributes = doc[F("attributes")];
 
-          // 2. Helper Lambda: Parse ISO String -> UTC time_t
-          auto parseIsoToUtc = [](const char* str) -> time_t {
-            int y, M, d, h, m, s;
-            // Parse "2025-12-03T08:04:34"
-            if (sscanf(str, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) == 6) {
-              struct tm tm = {0};
-              tm.tm_year = y - 1900; 
-              tm.tm_mon = M - 1; 
-              tm.tm_mday = d;
-              tm.tm_hour = h; 
-              tm.tm_min = m; 
-              tm.tm_sec = s;
-              tm.tm_isdst = 0;
-              
-              // FIX for missing timegm: Swap TZ to UTC, mktime, then swap back
-              char *oldTz = getenv("TZ"); // Save current TZ
-              setenv("TZ", "UTC0", 1);    // Force UTC
-              tzset();
-              
-              time_t t = mktime(&tm);     // Convert
-              
-              if (oldTz) setenv("TZ", oldTz, 1); // Restore TZ
-              else unsetenv("TZ");
-              tzset();
-              
-              return t;
-            }
-            return 0;
-          };
+      if (sunAttributes[F("next_dawn")] && sunAttributes[F("next_dusk")]) {
+        const char *riseStr = sunAttributes[F("next_dawn")];
+        const char *setStr = sunAttributes[F("next_dusk")];
 
-          // 3. Convert Strings to UTC Epochs
-          time_t riseUtc = parseIsoToUtc(riseStr);
-          time_t setUtc = parseIsoToUtc(setStr);
+        // 2. Helper Lambda: Parse ISO String -> UTC time_t
+        auto parseIsoToUtc = [](const char *str) -> time_t {
+          int y, M, d, h, m, s;
+          // Parse "2025-12-03T08:04:34"
+          if (sscanf(str, "%d-%d-%dT%d:%d:%d", &y, &M, &d, &h, &m, &s) == 6) {
+            struct tm tm = {0};
+            tm.tm_year = y - 1900;
+            tm.tm_mon = M - 1;
+            tm.tm_mday = d;
+            tm.tm_hour = h;
+            tm.tm_min = m;
+            tm.tm_sec = s;
+            tm.tm_isdst = 0;
 
-          // 4. Convert UTC -> Local Time (Using restored system TZ)
-          struct tm riseLocal, setLocal;
-          localtime_r(&riseUtc, &riseLocal);
-          localtime_r(&setUtc, &setLocal);
+            // FIX for missing timegm: Swap TZ to UTC, mktime, then swap back
+            char *oldTz = getenv("TZ"); // Save current TZ
+            setenv("TZ", "UTC0", 1);    // Force UTC
+            tzset();
 
-          // 5. Update the variables
-          sunriseHour = riseLocal.tm_hour;
-          sunriseMinute = riseLocal.tm_min;
-          sunsetHour = setLocal.tm_hour;
-          sunsetMinute = setLocal.tm_min;
+            time_t t = mktime(&tm); // Convert
 
-          Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): %02d:%02d | %02d:%02d\n",
-                        sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
-                        
-          return "OK"; // Successfully parsed
-        }
+            if (oldTz)
+              setenv("TZ", oldTz, 1); // Restore TZ
+            else
+              unsetenv("TZ");
+            tzset();
+
+            return t;
+          }
+          return 0;
+        };
+
+        // 3. Convert Strings to UTC Epochs
+        time_t riseUtc = parseIsoToUtc(riseStr);
+        time_t setUtc = parseIsoToUtc(setStr);
+
+        // 4. Convert UTC -> Local Time (Using restored system TZ)
+        struct tm riseLocal, setLocal;
+        localtime_r(&riseUtc, &riseLocal);
+        localtime_r(&setUtc, &setLocal);
+
+        // 5. Update the variables
+        sunriseHour = riseLocal.tm_hour;
+        sunriseMinute = riseLocal.tm_min;
+        sunsetHour = setLocal.tm_hour;
+        sunsetMinute = setLocal.tm_min;
+
+        Serial.printf("[HOME ASSISTANT] Adjusted Sunrise/Sunset (local): "
+                      "%02d:%02d | %02d:%02d\n",
+                      sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
+
+        return "OK"; // Successfully parsed
+      }
     }
-    
+
     // Fallback: If attributes missing, try state
     if (doc[F("state")]) {
-       String s = doc[F("state")].as<String>();
-       Serial.printf("[HOME ASSISTANT] Sun State: %s\n", s.c_str());
-       return s; 
+      String s = doc[F("state")].as<String>();
+      Serial.printf("[HOME ASSISTANT] Sun State: %s\n", s.c_str());
+      return s;
     }
   }
-  
-  Serial.println(F("[HOME ASSISTANT] No valid sun object found"));
-  return "Error: No Sun"; 
-}
 
+  Serial.println(F("[HOME ASSISTANT] No valid sun object found"));
+  return "Error: No Sun";
+}

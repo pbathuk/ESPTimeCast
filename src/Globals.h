@@ -1,24 +1,49 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-#include <MD_Parola.h>
+#include <AceTime.h>
+#include <AceTimeClock.h>
 #include <Audio.h>
-#include <MD_MAX72xx.h>
-#include <SPI.h>
-#include <ESPAsyncWebServer.h>
+#include <Button2.h>
 #include <DNSServer.h>
+#include <ESPAsyncWebServer.h>
+#include <MD_MAX72xx.h>
+#include <MD_Parola.h>
+#include <SPI.h>
+
+using namespace ace_time;
+using ace_time::acetime_t;
+using ace_time::BasicZoneProcessor;
+using ace_time::TimeZone;
+using ace_time::ZonedDateTime;
+using ace_time::clock::EspSntpClock;
+using ace_time::zonedb2025::kZoneEurope_London;
+
+// --- Time Objects ---
+extern BasicZoneProcessor zoneProcessor;
+extern EspSntpClock *sntpClock;
+extern TimeZone localTz;
 
 // --- Constants ---
 #define HARDWARE_TYPE MD_MAX72XX::FC16_HW
 #define MAX_DEVICES 4
-#define CLK_PIN 15 //12    //D5
-#define CS_PIN 16 //10    // D7
-#define DATA_PIN 17 //11  //D8
+#define CLK_PIN 15
+#define CS_PIN 16
+#define DATA_PIN 17
 
 // Audio Pins
-#define I2S_LRC       5
-#define I2S_BCLK      6
-#define I2S_DOUT      7
+#define I2S_LRC 5
+#define I2S_BCLK 6
+#define I2S_DOUT 7
+
+// Button Pins
+#define BUTTON_PIN_LEFT 12
+#define BUTTON_PIN_MID 13
+#define BUTTON_PIN_RIGHT 14
+
+extern Button2 buttonLeft;
+extern Button2 buttonMiddle;
+extern Button2 buttonRight;
 
 // --- External Objects ---
 extern MD_Parola P;
@@ -39,11 +64,10 @@ extern char homeAssistantApiKey[254];
 extern char haTempSensor[128];
 extern char haHumiditySensor[128];
 extern char weatherUnits[12];
-extern char language[8];
 extern unsigned long lastWifiConnectTime;
 extern String mainDesc;
 extern String detailedDesc;
-
+extern const char *hostName;
 
 extern int brightness;
 extern unsigned long clockDuration;
@@ -57,7 +81,7 @@ extern bool showDayOfWeek;
 extern bool useHomeAssistant;
 extern bool showHumidity;
 extern bool colonBlinkEnabled;
-extern char ntpServer1[64];
+extern char ntpServer1[256];
 extern char ntpServer2[256];
 extern char customMessage[121];
 extern char lastPersistentMessage[128];
@@ -68,7 +92,6 @@ extern int currentScrollCount;
 extern int currentDisplayCycleCount;
 extern bool showDate;
 extern bool isAlarmPlaying;
-
 
 // Dimming
 extern bool dimmingEnabled;
@@ -90,7 +113,7 @@ extern int sunsetMinute;
 extern const char *DEFAULT_AP_PASSWORD;
 extern const char *AP_SSID;
 
-//Countdown Globals
+// Countdown Globals
 extern bool countdownEnabled;
 extern time_t countdownTargetTimestamp;
 extern char countdownLabel[64];
@@ -102,14 +125,10 @@ extern unsigned long lastUptimeLog;
 extern const unsigned long uptimeLogInterval;
 extern unsigned long totalUptimeSeconds;
 
-
 // --- Global Scroll Speed Settings ---
 extern const int GENERAL_SCROLL_SPEED;
 extern const int IP_SCROLL_SPEED;
 extern int messageScrollSpeed;
-
-// --- Nightscout setting ---
-extern const unsigned int NIGHTSCOUT_IDLE_THRESHOLD_MIN; 
 
 // State management
 extern bool weatherCycleStarted;
@@ -132,16 +151,6 @@ extern bool clockScrollDone;
 extern int currentHumidity;
 extern bool ntpSyncSuccessful;
 
-// NTP Synchronization State Machine
-enum NtpState {
-  NTP_IDLE,
-  NTP_SYNCING,
-  NTP_SUCCESS,
-  NTP_FAILED
-};
-extern NtpState ntpState;
-
-
 extern unsigned long ntpStartTime;
 extern const int ntpTimeout;
 extern const int maxNtpRetries;
@@ -153,6 +162,10 @@ extern bool showingIp;
 extern int ipDisplayCount;
 extern const int ipDisplayMax;
 extern String pendingIpToShow;
+
+extern int scrollCount;
+extern const int scrollDisplayMax;
+extern bool dramaticLock;
 
 extern bool countdownScrolling;
 extern unsigned long countdownScrollEndTime;
@@ -171,4 +184,15 @@ extern const unsigned long descriptionDuration;
 extern unsigned long descScrollEndTime;
 extern const unsigned long descriptionScrollPause;
 
+extern unsigned long hourGlassStartMillis;
+extern const int hourGlassRepeats;
+extern const long hourGlassFlipInterval;
+extern int hourGlassFlipCount;
+
+extern unsigned long segmentStartMillis;
+
+extern unsigned long customMessageEndTime;
+extern unsigned long customerMessageDuration;
+
+extern int currentDisplayCycleCount; 
 #endif

@@ -5,7 +5,8 @@ void loadConfig() {
 
   // Check if config.json exists, if not, create default
   if (!LittleFS.exists("/config.json")) {
-    Serial.println(F("[CONFIG] config.json not found, creating with defaults..."));
+    Serial.println(
+        F("[CONFIG] config.json not found, creating with defaults..."));
     JsonDocument doc;
     doc[F("ssid")] = ssid;
     doc[F("password")] = password;
@@ -21,11 +22,10 @@ void loadConfig() {
     doc[F("clockDuration")] = clockDuration;
     doc[F("weatherDuration")] = weatherDuration;
     doc[F("timeZone")] = timeZone;
-    doc[F("language")] = language;
     doc[F("brightness")] = brightness;
     doc[F("flipDisplay")] = flipDisplay;
     doc[F("twelveHourToggle")] = twelveHourToggle;
-    doc[F("amPMShow")] = amPMShow;    
+    doc[F("amPMShow")] = amPMShow;
     doc[F("showDayOfWeek")] = showDayOfWeek;
     doc[F("showDate")] = showDate;
     doc[F("showHumidity")] = showHumidity;
@@ -53,7 +53,7 @@ void loadConfig() {
     countdownObj["targetTimestamp"] = 0;
     countdownObj["label"] = "";
     countdownObj["isDramaticCountdown"] = true;
-    
+
     File f = LittleFS.open("/config.json", "w");
     if (f) {
       serializeJsonPretty(doc, f);
@@ -67,7 +67,8 @@ void loadConfig() {
   Serial.println(F("[CONFIG] Attempting to open config.json for reading."));
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
-    Serial.println(F("[ERROR] Failed to open config.json for reading. Cannot load config."));
+    Serial.println(F(
+        "[ERROR] Failed to open config.json for reading. Cannot load config."));
     return;
   }
 
@@ -83,21 +84,29 @@ void loadConfig() {
 
   strlcpy(ssid, getJsonValue(doc, "ssid", ""), sizeof(ssid));
   strlcpy(password, getJsonValue(doc, "password", ""), sizeof(password));
-  strlcpy(homeAssistantURL, getJsonValue(doc, "homeAssistantURL", ""), sizeof(homeAssistantURL));
-  strlcpy(homeAssistantApiKey, getJsonValue(doc, "homeAssistantApiKey", ""), sizeof(homeAssistantApiKey));
-  strlcpy(haTempSensor, getJsonValue(doc, "haTempSensor", ""), sizeof(haTempSensor));
-  strlcpy(haHumiditySensor, getJsonValue(doc, "haHumiditySensor", ""), sizeof(haHumiditySensor));
-  strlcpy(openWeatherApiKey, getJsonValue(doc, "openWeatherApiKey", ""), sizeof(openWeatherApiKey));
-  strlcpy(openWeatherCity, getJsonValue(doc, "openWeatherCity", ""), sizeof(openWeatherCity));
-  strlcpy(openWeatherCountry, getJsonValue(doc, "openWeatherCountry", ""), sizeof(openWeatherCountry));
-  strlcpy(weatherUnits, getJsonValue(doc, "weatherUnits", "metric"), sizeof(weatherUnits));
-  strlcpy(customMessage, getJsonValue(doc, "customMessage", ""), sizeof(customMessage));
+  strlcpy(homeAssistantURL, getJsonValue(doc, "homeAssistantURL", ""),
+          sizeof(homeAssistantURL));
+  strlcpy(homeAssistantApiKey, getJsonValue(doc, "homeAssistantApiKey", ""),
+          sizeof(homeAssistantApiKey));
+  strlcpy(haTempSensor, getJsonValue(doc, "haTempSensor", ""),
+          sizeof(haTempSensor));
+  strlcpy(haHumiditySensor, getJsonValue(doc, "haHumiditySensor", ""),
+          sizeof(haHumiditySensor));
+  strlcpy(openWeatherApiKey, getJsonValue(doc, "openWeatherApiKey", ""),
+          sizeof(openWeatherApiKey));
+  strlcpy(openWeatherCity, getJsonValue(doc, "openWeatherCity", ""),
+          sizeof(openWeatherCity));
+  strlcpy(openWeatherCountry, getJsonValue(doc, "openWeatherCountry", ""),
+          sizeof(openWeatherCountry));
+  strlcpy(weatherUnits, getJsonValue(doc, "weatherUnits", "metric"),
+          sizeof(weatherUnits));
+  strlcpy(customMessage, getJsonValue(doc, "customMessage", ""),
+          sizeof(customMessage));
   strlcpy(lastPersistentMessage, customMessage, sizeof(lastPersistentMessage));
   clockDuration = getJsonValue(doc, "clockDuration", 10000);
   weatherDuration = getJsonValue(doc, "weatherDuration", 5000);
 
   strlcpy(timeZone, getJsonValue(doc, "timeZone", "Etc/UTC"), sizeof(timeZone));
-  strlcpy(language, getJsonValue(doc, "language", "en"), sizeof(language));
 
   brightness = getJsonValue(doc, "brightness", 7);
   flipDisplay = getJsonValue(doc, "flipDisplay", false);
@@ -122,14 +131,15 @@ void loadConfig() {
   sunsetHour = getJsonValue(doc, "sunsetHour", 18);
   sunsetMinute = getJsonValue(doc, "sunsetMinute", 0);
 
-  strlcpy(ntpServer1, getJsonValue(doc, "ntpServer1", "pool.ntp.org"), sizeof(ntpServer1));
-  strlcpy(ntpServer2, getJsonValue(doc, "ntpServer2", "time.nist.gov"), sizeof(ntpServer2));
+  strlcpy(ntpServer1, getJsonValue(doc, "ntpServer1", "pool.ntp.org"),
+          sizeof(ntpServer1));
+  strlcpy(ntpServer2, getJsonValue(doc, "ntpServer2", "time.nist.gov"),
+          sizeof(ntpServer2));
 
   if (strcmp(weatherUnits, "imperial") == 0)
     tempSymbol = ']';
   else
     tempSymbol = '[';
-
 
   // --- COUNTDOWN CONFIG LOADING ---
   if (doc["countdown"]) {
@@ -137,7 +147,8 @@ void loadConfig() {
 
     countdownEnabled = getJsonValue(countdownObj, "enabled", false);
     countdownTargetTimestamp = getJsonValue(countdownObj, "targetTimestamp", 0);
-    isDramaticCountdown = getJsonValue(countdownObj, "isDramaticCountdown", true);
+    isDramaticCountdown =
+        getJsonValue(countdownObj, "isDramaticCountdown", true);
 
     JsonVariant labelVariant = countdownObj["label"];
     if (labelVariant.isNull() || !labelVariant.is<const char *>()) {
@@ -156,7 +167,8 @@ void loadConfig() {
     countdownTargetTimestamp = 0;
     strcpy(countdownLabel, "");
     isDramaticCountdown = true;
-    Serial.println(F("[CONFIG] Countdown object not found, defaulting to disabled."));
+    Serial.println(
+        F("[CONFIG] Countdown object not found, defaulting to disabled."));
     countdownFinished = false;
   }
   Serial.println(F("[CONFIG] Configuration loaded."));
@@ -192,8 +204,6 @@ void printConfigToSerial() {
   Serial.println(weatherDuration);
   Serial.print(F("TimeZone (IANA): "));
   Serial.println(timeZone);
-  Serial.print(F("Days of the Week/Weather description language: "));
-  Serial.println(language);
   Serial.print(F("Brightness: "));
   Serial.println(brightness);
   Serial.print(F("Flip Display: "));
@@ -227,10 +237,13 @@ void printConfigToSerial() {
 
   if (autoDimmingEnabled) {
     // --- Automatic (Sunrise/Sunset) dimming mode ---
-    if ((sunriseHour == 6 && sunriseMinute == 0) && (sunsetHour == 18 && sunsetMinute == 0)) {
-      Serial.println(F("Automatic Dimming Schedule: Sunrise/Sunset Data not available yet (waiting for weather update)"));
+    if ((sunriseHour == 6 && sunriseMinute == 0) &&
+        (sunsetHour == 18 && sunsetMinute == 0)) {
+      Serial.println(F("Automatic Dimming Schedule: Sunrise/Sunset Data not "
+                       "available yet (waiting for weather update)"));
     } else {
-      Serial.printf("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: %02d:%02d\n",
+      Serial.printf("Automatic Dimming Schedule: Sunrise: %02d:%02d → Sunset: "
+                    "%02d:%02d\n",
                     sunriseHour, sunriseMinute, sunsetHour, sunsetMinute);
 
       time_t now_time = time(nullptr);
@@ -242,10 +255,11 @@ void printConfigToSerial() {
       int endTotal = sunriseHour * 60 + sunriseMinute;
 
       bool autoActive = (startTotal < endTotal)
-                          ? (curTotal >= startTotal && curTotal < endTotal)
-                          : (curTotal >= startTotal || curTotal < endTotal);
+                            ? (curTotal >= startTotal && curTotal < endTotal)
+                            : (curTotal >= startTotal || curTotal < endTotal);
 
-      Serial.printf("Current Auto-Dimming Status: %s\n", autoActive ? "ACTIVE" : "Inactive");
+      Serial.printf("Current Auto-Dimming Status: %s\n",
+                    autoActive ? "ACTIVE" : "Inactive");
       Serial.printf("Dimming Brightness (night): %d\n", dimBrightness);
     }
   } else {
@@ -284,15 +298,17 @@ void loadUptime() {
       totalUptimeSeconds = f.parseInt();
       f.close();
       bootMillis = millis();
-      Serial.printf("[UPTIME] Loaded accumulated uptime: %lu seconds (%.2f hours)\n",
-                    totalUptimeSeconds, totalUptimeSeconds / 3600.0);
+      Serial.printf(
+          "[UPTIME] Loaded accumulated uptime: %lu seconds (%.2f hours)\n",
+          totalUptimeSeconds, totalUptimeSeconds / 3600.0);
     } else {
       Serial.println(F("[UPTIME] Failed to open /uptime.dat for reading."));
       totalUptimeSeconds = 0;
       bootMillis = millis();
     }
   } else {
-    Serial.println(F("[UPTIME] No previous uptime file found. Starting from 0."));
+    Serial.println(
+        F("[UPTIME] No previous uptime file found. Starting from 0."));
     totalUptimeSeconds = 0;
     bootMillis = millis();
   }
@@ -301,13 +317,14 @@ void loadUptime() {
 void saveUptime() {
   // Use getTotalRuntimeSeconds() to include current session
   totalUptimeSeconds = getTotalRuntimeSeconds();
-  bootMillis = millis();  // reset session start
+  bootMillis = millis(); // reset session start
 
   File f = LittleFS.open("/uptime.dat", "w");
   if (f) {
     f.print(totalUptimeSeconds);
     f.close();
-    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n", formatTotalRuntime().c_str());
+    Serial.printf("[UPTIME] Saved accumulated uptime: %s\n",
+                  formatTotalRuntime().c_str());
   } else {
     Serial.println(F("[UPTIME] Failed to write /uptime.dat"));
   }
@@ -339,16 +356,19 @@ void saveCustomMessageToConfig(const char *msg) {
 
   File f = LittleFS.open("/config.json", "w");
   if (!f) {
-    Serial.println(F("[CONFIG] ERROR: Failed to open /config.json for writing"));
+    Serial.println(
+        F("[CONFIG] ERROR: Failed to open /config.json for writing"));
     return;
   }
 
   size_t bytesWritten = serializeJson(doc, f);
   f.close();
-  Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg, bytesWritten);
+  Serial.printf("[CONFIG] Saved customMessage='%s' (%u bytes written)\n", msg,
+                bytesWritten);
 }
 
-bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &label) {
+bool saveCountdownConfig(bool enabled, time_t targetTimestamp,
+                         const String &label) {
   JsonDocument doc;
 
   File configFile = LittleFS.open("/config.json", "r");
@@ -362,7 +382,9 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
     }
   }
 
-  JsonObject countdownObj = doc["countdown"].is<JsonObject>() ? doc["countdown"].as<JsonObject>() : doc["countdown"].to<JsonObject>();
+  JsonObject countdownObj = doc["countdown"].is<JsonObject>()
+                                ? doc["countdown"].as<JsonObject>()
+                                : doc["countdown"].to<JsonObject>();
   countdownObj["enabled"] = enabled;
   countdownObj["targetTimestamp"] = targetTimestamp;
   countdownObj["label"] = label;
@@ -378,13 +400,15 @@ bool saveCountdownConfig(bool enabled, time_t targetTimestamp, const String &lab
 
   File f = LittleFS.open("/config.json", "w");
   if (!f) {
-    Serial.println(F("[saveCountdownConfig] ERROR: Cannot write to /config.json"));
+    Serial.println(
+        F("[saveCountdownConfig] ERROR: Cannot write to /config.json"));
     return false;
   }
 
   size_t bytesWritten = serializeJson(doc, f);
   f.close();
 
-  Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n", bytesWritten);
+  Serial.printf("[saveCountdownConfig] Config updated. %u bytes written.\n",
+                bytesWritten);
   return true;
 }

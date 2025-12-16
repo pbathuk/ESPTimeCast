@@ -423,40 +423,6 @@ textarea::placeholder {
   <option value="Etc/GMT-1">Etc/GMT-1</option>
   </select>
 
-    <label for="language">Language (Day & Weather)</label>
-  <select id="language" name="language" onchange="setLanguage(this.value)">
-    <option value="" disabled selected>Select language</option>
-    <option value="af">Afrikaans</option>
-    <option value="hr">Croatian</option>
-    <option value="cs">Czech</option>
-    <option value="da">Danish</option>
-    <option value="nl">Dutch</option>
-    <option value="en">English</option>
-    <option value="eo">Esperanto</option>
-    <option value="et">Estonian</option>
-    <option value="fi">Finnish</option>
-    <option value="fr">French</option>
-    <option value="de">German</option>
-    <option value="hu">Hungarian</option>
-    <option value="it">Italian</option>
-    <option value="ga">Irish</option>
-    <option value="ja">Japanese</option>
-    <option value="lv">Latvian</option>
-    <option value="lt">Lithuanian</option>
-    <option value="no">Norwegian</option>
-    <option value="pl">Polish</option>
-    <option value="pt">Portuguese</option>
-    <option value="ro">Romanian</option>
-    <option value="ru">Russian</option>
-    <option value="sr">Serbian</option>
-    <option value="sk">Slovak</option>
-    <option value="sl">Slovenian</option>
-    <option value="es">Spanish</option>
-    <option value="sv">Swedish</option>
-    <option value="sw">Swahili</option>
-    <option value="tr">Turkish</option>
-  </select>
-
   <div class="form-row two-col">
     <div>
       <label for="clockDuration">Clock Duration</label>
@@ -810,7 +776,6 @@ window.onload = function () {
     document.getElementById('weatherUnits').checked = (data.weatherUnits === "imperial");
     document.getElementById('clockDuration').value = (data.clockDuration || 10000) / 1000;
     document.getElementById('weatherDuration').value = (data.weatherDuration || 5000) / 1000;
-    document.getElementById('language').value = data.language || '';
     document.getElementById('useHomeAssistant').checked = !!data.useHomeAssistant;
     toggleWeatherVisibility();
     document.getElementById('homeAssistantURL').value = data.homeAssistantURL || ''; 
@@ -1019,14 +984,7 @@ async function submitConfig(event) {
   data.ntpServer1 = document.getElementById('ntpServer1').value;
   data.ntpServer2 = document.getElementById('ntpServer2').value;
 
-  data.language = document.getElementById('language').value;
   data.timeZone = document.getElementById('timeZone').value;
-     
-     
-     
-  // --- D. Dimming Logic ---
-  const autoDim = document.getElementById('autoDimmingEnabled').checked;
-  const custDim = document.getElementById('dimmingEnabled').checked;
   
   // Mutual exclusivity (if both checked somehow, keep auto as priority)
   if (autoDim && custDim) {
@@ -1359,14 +1317,6 @@ function setShowHumidity(val) {
     method: 'POST',
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: "value=" + (val ? 1 : 0)
-  });
-}
-
-function setLanguage(val) {
-  fetch('/set_language', {
-    method: 'POST',
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: "value=" + encodeURIComponent(val)
   });
 }
 

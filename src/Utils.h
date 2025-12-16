@@ -1,27 +1,28 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <ArduinoJson.h>  // Needed for the getJsonValue template
+#include "Globals.h"
+#include "index_html.h"
+#include <ArduinoJson.h> // Needed for the getJsonValue template
 #include <HTTPClient.h>
 #include <LittleFS.h>
-#include "index_html.h"
-#include "Globals.h"
 
 template <typename T>
-T getJsonValue(JsonVariantConst obj, const char* key, T defaultValue) {
-    // ArduinoJson v7 handles null checks automatically.
-    // If 'obj' is null, obj[key] is null.
-    // .is<T>() checks if the key exists AND holds the correct type.
-    if (obj[key].is<T>()) {
-        return obj[key].as<T>();
-    }
-    Serial.print(F("[CONFIG] Key '"));
-    Serial.print(key);
-    Serial.print(F("' missing or invalid. Defaulting to: "));
-    Serial.println(defaultValue);
-    return defaultValue;
+T getJsonValue(JsonVariantConst obj, const char *key, T defaultValue) {
+  // ArduinoJson v7 handles null checks automatically.
+  // If 'obj' is null, obj[key] is null.
+  // .is<T>() checks if the key exists AND holds the correct type.
+  if (obj[key].is<T>()) {
+    return obj[key].as<T>();
+  }
+  Serial.print(F("[CONFIG] Key '"));
+  Serial.print(key);
+  Serial.print(F("' missing or invalid. Defaulting to: "));
+  Serial.println(defaultValue);
+  return defaultValue;
 }
-textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection, bool isFlipped);
+textEffect_t getEffectiveScrollDirection(textEffect_t desiredDirection,
+                                         bool isFlipped);
 void advanceDisplayMode();
 void advanceDisplayModeSafe();
 bool isNumber(const char *str);
