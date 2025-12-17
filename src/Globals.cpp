@@ -1,5 +1,4 @@
 #include "Globals.h"
-#include <AceTime.h>
 
 // --- Object Instantiation ---
 MD_Parola P = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);

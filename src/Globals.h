@@ -45,6 +45,8 @@ extern Button2 buttonLeft;
 extern Button2 buttonMiddle;
 extern Button2 buttonRight;
 
+#define BUTTON_LONGCLICK_MS 1000
+
 // --- External Objects ---
 extern MD_Parola P;
 extern AsyncWebServer server;

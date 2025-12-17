@@ -1,13 +1,13 @@
-#include "ButtonManager.h"
+#include <Arduino.h>
+#include <ArduinoOTA.h>
 #include "ConfigManager.h"
 #include "Globals.h" // Global variables and constants
 #include "NetworkManager.h"
 #include "Utils.h" // Utility functions
 #include "WeatherManager.h"
 #include "WebHandler.h"
+#include "ButtonManager.h"
 #include "mfactoryfont.h" // Custom font
-#include <Arduino.h>
-#include <ArduinoOTA.h>
 
 void setup() {
 
@@ -122,6 +122,21 @@ void setup() {
       });
 
   ArduinoOTA.begin();
+  // Button setup
+
+  buttonLeft.begin(BUTTON_PIN_LEFT);
+  buttonLeft.setLongClickTime(BUTTON_LONGCLICK_MS);
+  buttonLeft.setClickHandler(handleShortClick);
+  buttonLeft.setLongClickDetectedHandler(handleLongClick);
+  buttonMiddle.begin(BUTTON_PIN_MID);
+  buttonMiddle.setLongClickTime(BUTTON_LONGCLICK_MS);
+  buttonMiddle.setClickHandler(handleShortClick);
+  buttonMiddle.setLongClickDetectedHandler(handleLongClick);
+  buttonRight.begin(BUTTON_PIN_RIGHT);
+  buttonRight.setLongClickTime(BUTTON_LONGCLICK_MS);
+  buttonRight.setClickHandler(handleShortClick);
+  buttonRight.setLongClickDetectedHandler(handleLongClick);
+
 }
 
 void loop() {
@@ -272,6 +287,12 @@ void loop() {
     }
     P.setIntensity(targetBrightness);
   }
+
+  // Button handling
+  buttonLeft.loop();
+  buttonMiddle.loop();
+  buttonRight.loop();
+
 
   // --- IMMEDIATE COUNTDOWN FINISH TRIGGER ---
   if (countdownEnabled && !countdownFinished && ntpSyncSuccessful &&
