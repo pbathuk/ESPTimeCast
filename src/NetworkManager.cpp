@@ -43,10 +43,15 @@ void connectWiFi() {
     return;
   }
 
+  // FORCE A CLEAN START
+  WiFi.persistent(false); // Do not save WiFi credentials to NVS automatically
+  WiFi.disconnect(true, true); // Erase saved credentials and turn off WiFi
+  delay(1000); // Give the radio time to reset
+  
   // If credentials exist, attempt STA connection
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(250);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm); // Reduces current spikes significantly.
+  delay(500);
 
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();

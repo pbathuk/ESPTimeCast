@@ -610,6 +610,13 @@ textarea::placeholder {
     <span class="toggle-slider"></span>
   </span>
 </label>
+<label style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem;">
+  <span style="margin-right: 0.5em;">No Click Sounds when Dimming Enabled:</span>
+  <span class="toggle-switch">
+    <input type="checkbox" id="dimmingClicks" name="dimmingClicks">
+    <span class="toggle-slider"></span>
+  </span>
+</label>
 
 
 <div class="form-row two-col">   
@@ -668,6 +675,39 @@ textarea::placeholder {
           title="Only uppercase letters, numbers, space, and : ! ' - . , _ + % / ? allowed">
         <div class="small">Allowed characters: A–Z, 0–9, space, and : ! ' - . ? , _ + % /</div>
       </div>
+      <br><br><br>
+      <h2>Audio Management</h2>
+      <div class="form-group">
+        <label for="audioFile">Upload New Alert (MP3):</label>
+        <input type="file" id="audioFile" accept=".mp3" style="padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+        <button type="button" class="primary-button" onclick="uploadAudio()" style="margin-top: 10px; width: 100%;">Upload Audio</button>
+        
+        <div id="uploadProgressContainer" style="display:none; margin-top:10px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden;">
+          <div id="uploadProgressBar" style="width: 0%; height: 10px; background: var(--accent-color); transition: width 0.3s;"></div>
+        </div>
+        <div id="uploadStatus" class="small" style="margin-top: 5px;"></div>
+      </div>
+      <label for="audioVolume">Master Volume: <span id="volValue">10</span></label>
+      <input style="width: 100%;" type="range" min="0" max="21" name="audioVolume" id="audioVolumeSlider" 
+        oninput="volValue.textContent = this.value; setVolumeLive(this.value);">
+      <label for="longClickSound">Long Click Sound:</label>
+      <select id="longClickSound" name="longClickSound">
+        <option value="">None / Default</option>
+      </select>
+      <div class="small">Choose an uploaded sound for the long-press action.</div>
+
+
+      <label for="shortClickSound">Short Click Sound:</label>
+      <select id="shortClickSound" name="shortClickSound">
+        <option value="">None / Default</option>
+      </select>
+      <div class="small">Choose an uploaded sound for the short-press action.</div>
+
+      <label for="alarmClockSound">Alarm Clock Sound:</label>
+      <select id="alarmClockSound" name="alarmClockSound">
+        <option value="">None / Default</option>
+      </select>
+      <div class="small">Choose an uploaded sound for the alarm clock.</div>
     </div>   
   </div>
   <input type="submit" class="primary-button" value="Save Settings">
@@ -740,6 +780,7 @@ window.onload = function () {
   fetch('/config.json')
   .then(response => response.json())
   .then(data => {
+    window.savedConfig = data; // <--- ADD THIS LINE HERE
     isAPMode = (data.mode === "ap");
     if (isAPMode) {
       document.querySelector('.geo-note').style.display = 'block';
@@ -808,6 +849,8 @@ window.onload = function () {
     // Evaluate flags from config.json
     const isAutoDimming = (data.autoDimmingEnabled === true || data.autoDimmingEnabled === "true" || data.autoDimmingEnabled === 1);
     const isCustomDimming = (data.dimmingEnabled === true || data.dimmingEnabled === "true" || data.dimmingEnabled === 1);
+   
+    document.getElementById('dimmingClicks').checked = !!data.dimmingClicks;
 
     // Set toggle states
     autoDimmingEl.checked = isAutoDimming;
@@ -821,12 +864,9 @@ window.onload = function () {
     autoDimmingEl.addEventListener('change', () => {
       if (autoDimmingEl.checked) dimmingEnabledEl.checked = false;
       setDimmingFieldsEnabled();
-    });
+    });  
+
     if (haapiInputEl) haapiInputEl.addEventListener('input', setDimmingFieldsEnabled);
-    autoDimmingEl.addEventListener('change', () => {
-      if (autoDimmingEl.checked) dimmingEnabledEl.checked = false;
-      setDimmingFieldsEnabled();
-    });
     dimmingEnabledEl.addEventListener('change', () => {
       if (dimmingEnabledEl.checked) autoDimmingEl.checked = false;
       setDimmingFieldsEnabled();
@@ -904,6 +944,8 @@ window.onload = function () {
     } else {
       document.getElementById('timeZone').value = data.timeZone;
     }
+      
+  populateAudioDropdowns(['longClickSound', 'shortClickSound', 'alarmClockSound']);   
   })
   .catch(err => {
     console.error('Failed to load config:', err);
@@ -924,7 +966,7 @@ window.onload = function () {
     }
   });
   document.querySelector('html').style.height = 'unset';       
-  document.body.classList.add('loaded');     
+  document.body.classList.add('loaded');  
 };
 
 async function submitConfig(event) {
@@ -936,6 +978,7 @@ async function submitConfig(event) {
   data.clockDuration = parseInt(document.getElementsByName('clockDuration')[0].value) * 1000;
   data.weatherDuration = parseInt(document.getElementsByName('weatherDuration')[0].value) * 1000;
   data.dimBrightness = parseInt(document.getElementById('dimBrightness').value);
+  
   data.brightness = parseInt(document.getElementById('brightnessSlider').value);
 
   // --- Booleans (True/False) ---
@@ -971,6 +1014,7 @@ async function submitConfig(event) {
       data.password = wifiPassInput.value;
 
   }
+      
      
   // --- D. Dimming Logic ---
   const autoDim = document.getElementById('autoDimmingEnabled').checked;
@@ -985,6 +1029,8 @@ async function submitConfig(event) {
   data.ntpServer2 = document.getElementById('ntpServer2').value;
 
   data.timeZone = document.getElementById('timeZone').value;
+
+  data.dimmingClicks = document.getElementById('dimmingClicks').checked;
   
   // Mutual exclusivity (if both checked somehow, keep auto as priority)
   if (autoDim && custDim) {
@@ -1015,6 +1061,10 @@ async function submitConfig(event) {
   data.isDramaticCountdown = document.getElementById('isDramaticCountdown').checked;
   data.countdownDate = document.getElementById('countdownDate').value;
   data.countdownTime = document.getElementById('countdownTime').value;
+  // Sound selection
+  data.longClickSound = document.getElementById('longClickSound').value;
+  data.shortClickSound = document.getElementById('shortClickSound').value;
+  data.alarmClockSound = document.getElementById('alarmClockSound').value;
 
   // Sanitize Label
   const rawLabel = document.getElementById('countdownLabel').value;
@@ -1061,7 +1111,7 @@ async function submitConfig(event) {
   .then(json => {
     isSaving = false;
     // Success Logic
-    updateSavingModal("✅ Configuration saved successfully.<br>Device will reboot.", false);
+    updateSavingModal("✅ Configuration saved successfully.<br>Device will reboot if required.<br>(When WIFI details changed)", false);
     setTimeout(() => location.href = location.href.split('#')[0], 3000);
   })
   .catch(err => {
@@ -1634,6 +1684,8 @@ function setDimmingFieldsEnabled() {
   const apiKeyField = document.getElementById('openWeatherApiKey');
   const autoDimming = document.getElementById('autoDimmingEnabled');
   const dimmingEnabled = document.getElementById('dimmingEnabled');
+  const dimmingClicks = document.getElementById('dimmingClicks');
+  
   const dimStart = document.getElementById('dimStartTime'); 
   const dimEnd = document.getElementById('dimEndTime');    
   const dimBrightness = document.getElementById('dimBrightness');
@@ -1674,6 +1726,7 @@ function setDimmingFieldsEnabled() {
 
   // START/END TIME FIELDS: Enabled ONLY if Custom Dimming is checked (key not needed).
   const isCustomTimeEnabled = dimmingEnabled.checked;
+  
   if (dimStart) {
       dimStart.disabled = !isCustomTimeEnabled; 
   }
@@ -1685,7 +1738,7 @@ function setDimmingFieldsEnabled() {
 window.addEventListener('DOMContentLoaded', () => {
   const apiKeyEl = document.getElementById('openWeatherApiKey');
   const autoEl = document.getElementById('autoDimmingEnabled');
-  const dimEl = document.getElementById('dimmingEnabled');
+  const dimEl = document.getElementById('dimmingEnabled'); 
 
   if (apiKeyEl) {
     apiKeyEl.addEventListener('input', setDimmingFieldsEnabled);
@@ -1694,6 +1747,103 @@ window.addEventListener('DOMContentLoaded', () => {
   if (autoEl) autoEl.addEventListener('change', setDimmingFieldsEnabled);
   if (dimEl) dimEl.addEventListener('change', setDimmingFieldsEnabled);
 });
+
+async function uploadAudio() {
+  const fileInput = document.getElementById('audioFile');
+  if (fileInput.files.length === 0) {
+    alert("Please select a file first.");
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const progContainer = document.getElementById('uploadProgressContainer');
+  const progBar = document.getElementById('uploadProgressBar');
+  const status = document.getElementById('uploadStatus');
+
+  progContainer.style.display = 'block';
+  status.innerText = "Uploading...";
+
+  const xhr = new XMLHttpRequest();
+  
+  // Track progress
+  xhr.upload.addEventListener("progress", (e) => {
+    if (e.lengthComputable) {
+      const percent = (e.loaded / e.total) * 100;
+      progBar.style.width = percent + "%";
+    }
+  });
+
+  xhr.onreadystatechange = () => {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        status.innerText = "✅ Upload Successful!";
+        fileInput.value = ""; // Clear input
+        // TRIGGER REFRESH HERE
+        // This re-scans LittleFS and updates all your dropdowns automatically
+        populateAudioDropdowns(['longClickSound', 'shortClickSound', 'alarmClockSound']);
+      } else {
+        status.innerText = "❌ Upload Failed: " + xhr.responseText;
+      }
+      setTimeout(() => { progContainer.style.display = 'none'; }, 3000);
+    }
+  };
+
+  xhr.open("POST", "/upload_audio", true);
+  xhr.send(formData);
+}
+
+let volDebounce = null;
+function setVolumeLive(val) {
+  if (volDebounce) clearTimeout(volDebounce);
+  volDebounce = setTimeout(() => {
+    fetch('/set_volume', {
+      method: 'POST',
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "value=" + val
+    });
+  }, 100);
+}
+  
+function populateAudioDropdowns(ids) {
+  fetch('/list_sounds')
+    .then(response => response.json())
+    .then(data => {
+      ids.forEach(id => {
+        const dropdown = document.getElementById(id);
+        if (!dropdown) return;
+
+        dropdown.innerHTML = '<option value="">None / Default</option>';
+        
+        data.sounds.forEach(sound => {
+          const opt = document.createElement('option');
+          // Ensure we standardize the value to always have the path
+          opt.value = "/sounds/" + sound; 
+          opt.innerHTML = sound;
+          dropdown.appendChild(opt);
+        });
+
+        // ROBUST SELECTION LOGIC
+        if (window.savedConfig && window.savedConfig[id]) {
+            let savedVal = window.savedConfig[id];
+            
+            // If saved value doesn't start with /sounds/, add it to match the dropdown options
+            if (!savedVal.startsWith("/sounds/") && savedVal !== "") {
+                savedVal = "/sounds/" + savedVal;
+            }
+            
+            dropdown.value = savedVal;
+            
+            // Debugging log to see what is happening
+            if (dropdown.value === "") { 
+                console.log(`Could not match saved value '${window.savedConfig[id]}' to any option in ${id}`);
+            }
+        }
+      });
+    });
+}
 
 </script>
 </body>

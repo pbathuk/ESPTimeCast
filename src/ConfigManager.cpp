@@ -33,6 +33,7 @@ void loadConfig() {
     doc[F("ntpServer1")] = ntpServer1;
     doc[F("ntpServer2")] = ntpServer2;
     doc[F("dimmingEnabled")] = dimmingEnabled;
+    doc[F("dimmingClicks")] = dimmingClicks;
     doc[F("dimStartHour")] = dimStartHour;
     doc[F("dimStartMinute")] = dimStartMinute;
     doc[F("dimEndHour")] = dimEndHour;
@@ -46,6 +47,12 @@ void loadConfig() {
     doc[F("sunriseMinute")] = sunriseMinute;
     doc[F("sunsetHour")] = sunsetHour;
     doc[F("sunsetMinute")] = sunsetMinute;
+
+    doc[F("longClickSound")] = longClickSound;
+    doc[F("shortClickSound")] = shortClickSound;
+    doc[F("alarmClockSound")] = alarmClockSound;
+    doc[F("audioVolume")] = audioVolume;
+    
 
     // Add countdown defaults when creating a new config.json
     JsonObject countdownObj = doc["countdown"].to<JsonObject>();
@@ -120,6 +127,7 @@ void loadConfig() {
   showWeatherDescription = getJsonValue(doc, "showWeatherDescription", false);
   dimmingEnabled = getJsonValue(doc, "dimmingEnabled", false);
   autoDimmingEnabled = getJsonValue(doc, "autoDimmingEnabled", false);
+  dimmingClicks = getJsonValue(doc, "dimmingClicks", false);
 
   dimStartHour = getJsonValue(doc, "dimStartHour", 18);
   dimStartMinute = getJsonValue(doc, "dimStartMinute", 0);
@@ -135,6 +143,16 @@ void loadConfig() {
           sizeof(ntpServer1));
   strlcpy(ntpServer2, getJsonValue(doc, "ntpServer2", "time.nist.gov"),
           sizeof(ntpServer2));
+
+  strlcpy(longClickSound, getJsonValue(doc, "longClickSound", ""),
+          sizeof(longClickSound));
+  strlcpy(shortClickSound, getJsonValue(doc, "shortClickSound", ""),
+          sizeof(shortClickSound));
+  strlcpy(alarmClockSound, getJsonValue(doc, "alarmClockSound", ""),
+          sizeof(alarmClockSound));
+
+  audioVolume = getJsonValue(doc, "audioVolume", 10);
+          
 
   if (strcmp(weatherUnits, "imperial") == 0)
     tempSymbol = ']';
@@ -226,6 +244,15 @@ void printConfigToSerial() {
   Serial.println(ntpServer1);
   Serial.print(F("NTP Server 2: "));
   Serial.println(ntpServer2);
+  Serial.print(F("longClickSound: "));
+  Serial.println(longClickSound);
+  Serial.print(F("shortClickSound: "));
+  Serial.println(longClickSound);
+  Serial.print(F("alarmClockSound: "));
+  Serial.println(alarmClockSound);
+  Serial.print(F("audioVolume: "));
+  Serial.println(audioVolume);
+
 
   // ---------------------------------------------------------------------------
   // DIMMING SECTION
@@ -234,6 +261,8 @@ void printConfigToSerial() {
   Serial.println(autoDimmingEnabled ? "Enabled" : "Disabled");
   Serial.print(F("Custom Dimming: "));
   Serial.println(dimmingEnabled ? "Enabled" : "Disabled");
+
+  
 
   if (autoDimmingEnabled) {
     // --- Automatic (Sunrise/Sunset) dimming mode ---
@@ -269,6 +298,8 @@ void printConfigToSerial() {
     Serial.printf("Dimming Brightness: %d\n", dimBrightness);
   }
 
+  Serial.print(F("dimmingClicks: "));
+  Serial.println(dimmingClicks ? "Enabled" : "Disabled");
   Serial.print(F("Countdown Enabled: "));
   Serial.println(countdownEnabled ? "Yes" : "No");
   Serial.print(F("Countdown Target Timestamp: "));

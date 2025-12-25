@@ -82,9 +82,9 @@ void setup() {
   lastColonBlink = millis();
   bootMillis = millis();
   saveUptime();
-
+  // Audio setup
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  audio.setVolume(6); // default 0...21
+  audio.setVolume(audioVolume); // default 0...21
 
   // Hostname defaults to esp3232-[MAC]
   ArduinoOTA.setHostname(hostName);
@@ -123,23 +123,30 @@ void setup() {
 
   ArduinoOTA.begin();
   // Button setup
-
   buttonLeft.begin(BUTTON_PIN_LEFT);
   buttonLeft.setLongClickTime(BUTTON_LONGCLICK_MS);
-  buttonLeft.setClickHandler(handleShortClick);
   buttonLeft.setLongClickDetectedHandler(handleLongClick);
+  buttonLeft.setClickHandler(handleShortClick);
+  buttonLeft.setDoubleClickHandler(handleShortClick);
+  buttonLeft.setTripleClickHandler(handleShortClick);
+
   buttonMiddle.begin(BUTTON_PIN_MID);
   buttonMiddle.setLongClickTime(BUTTON_LONGCLICK_MS);
-  buttonMiddle.setClickHandler(handleShortClick);
   buttonMiddle.setLongClickDetectedHandler(handleLongClick);
+  buttonMiddle.setClickHandler(handleShortClick);
+  buttonMiddle.setDoubleClickHandler(handleShortClick);
+  buttonMiddle.setTripleClickHandler(handleShortClick);
+
   buttonRight.begin(BUTTON_PIN_RIGHT);
   buttonRight.setLongClickTime(BUTTON_LONGCLICK_MS);
-  buttonRight.setClickHandler(handleShortClick);
   buttonRight.setLongClickDetectedHandler(handleLongClick);
-
+  buttonRight.setClickHandler(handleShortClick);
+  buttonRight.setDoubleClickHandler(handleShortClick);
+  buttonRight.setTripleClickHandler(handleShortClick);
 }
 
 void loop() {
+  audio.loop();
   ArduinoOTA.handle();
   if (isAPMode) {
     dnsServer.processNextRequest();
@@ -223,7 +230,6 @@ void loop() {
   // Determine dimming start/end
   // -----------------------------
   int startTotal, endTotal;
-  bool dimActive = false;
 
   if (autoDimmingEnabled) {
     startTotal = sunsetHour * 60 + sunsetMinute;
@@ -251,7 +257,6 @@ void loop() {
   // -----------------------------
   static bool lastDimActive = false; // remembers last state
   int targetBrightness = dimActive ? dimBrightness : brightness;
-
   // Log only when transitioning
   if (dimActive != lastDimActive) {
     if (dimActive) {
@@ -261,8 +266,12 @@ void loop() {
       else if (dimmingEnabled)
         Serial.printf("[DISPLAY] Custom dimming setting brightness to %d\n",
                       targetBrightness);
+      if (dimmingClicks) 
+        Serial.println(F("[DISPLAY] Dimming activated - clicks disabled"));  
     } else {
       Serial.println(F("[DISPLAY] Waking display (dimming end)"));
+      if (dimmingClicks) 
+        Serial.println(F("[DISPLAY] Dimming deactivated - clicks enabled"));  
     }
     lastDimActive = dimActive;
   }
@@ -334,12 +343,6 @@ void loop() {
       P.displayClear();
       displayOff = true;
     }
-  }
-
-  // 1. Audio Handling (Highest Priority)
-  if (isAlarmPlaying) {
-    audio.loop();
-    // NO DELAYS HERE!
   }
 
   // Only advance mode by timer for clock/weather, not description!

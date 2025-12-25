@@ -154,6 +154,8 @@ void setupWebServer() {
             getJsonValue(doc, "showWeatherDescription", false);
         dimmingEnabled = getJsonValue(doc, "dimmingEnabled", false);
         autoDimmingEnabled = getJsonValue(doc, "autoDimmingEnabled", false);
+        dimmingClicks = getJsonValue(doc, "dimmingClicks", false);
+        
 
         // Strings
         // Note: For strings, we only update if the JSON contains the key.
@@ -170,6 +172,18 @@ void setupWebServer() {
           strlcpy(ntpServer1, doc["ntpServer1"], sizeof(ntpServer1));
         if (doc["ntpServer2"])
           strlcpy(ntpServer2, doc["ntpServer2"], sizeof(ntpServer2));
+
+        if (doc["longClickSound"])
+          strlcpy(longClickSound, doc["longClickSound"],
+                  sizeof(longClickSound));
+        if (doc["shortClickSound"])
+          strlcpy(shortClickSound, doc["shortClickSound"],
+                  sizeof(shortClickSound));
+        if (doc["alarmClockSound"])
+          strlcpy(alarmClockSound, doc["alarmClockSound"],
+                  sizeof(alarmClockSound));
+                  
+        audioVolume = getJsonValue(doc, "audioVolume", 10);
 
         if (doc["homeAssistantURL"]) {
           String tempURL = doc["homeAssistantURL"].as<String>();
@@ -235,6 +249,17 @@ void setupWebServer() {
           if (newTargetTimestamp == (time_t)-1)
             newTargetTimestamp = 0;
         }
+        if (doc["longClickSound"])
+          strlcpy(longClickSound, doc["longClickSound"],
+                  sizeof(longClickSound));
+        if (doc["shortClickSound"])
+          strlcpy(shortClickSound, doc["shortClickSound"],
+                  sizeof(shortClickSound));
+        if (doc["alarmClockSound"])
+          strlcpy(alarmClockSound, doc["alarmClockSound"],
+                  sizeof(alarmClockSound));
+
+        audioVolume = getJsonValue(doc, "audioVolume", 10);
 
         // 2. REBUILD THE DOC FOR SAVING
         // We must clear and add EVERYTHING back, otherwise missing items get
@@ -260,6 +285,7 @@ void setupWebServer() {
         doc["colonBlinkEnabled"] = colonBlinkEnabled;
         doc["autoDimmingEnabled"] = autoDimmingEnabled;
         doc["dimmingEnabled"] = dimmingEnabled;
+        doc["dimmingClicks"] = dimmingClicks;        
         doc["dimStartHour"] = dimStartHour;
         doc["dimStartMinute"] = dimStartMinute;
         doc["dimEndHour"] = dimEndHour;
@@ -285,6 +311,10 @@ void setupWebServer() {
         cdObj["targetTimestamp"] = newTargetTimestamp;
         cdObj["label"] = cLabel;
         cdObj["isDramaticCountdown"] = newIsDramatic;
+        doc["longClickSound"] = longClickSound;
+        doc["shortClickSound"] = shortClickSound;
+        doc["alarmClockSound"] = alarmClockSound;
+        doc["audioVolume"] = audioVolume;
 
         // 3. WRITE TO FILE
         if (LittleFS.exists("/config.json")) {
@@ -313,12 +343,25 @@ void setupWebServer() {
         }
 
         request->send(200, "application/json", "{\"status\":\"ok\"}");
+        
+        // Only need to restart if SSID or Password changed
+        if ((newPass != "********" && newPass.length() > 0)
+        or (newssid != "********" && newssid.length() > 0)) {
+          Serial.println(F("[WEBSERVER] Rebooting to apply new WiFi settings...")); 
+          request->onDisconnect([]() {
+            saveUptime();
+            delay(100);
+            
+            ESP.restart();
+          });
+        }
+        else {
+          Serial.println(F("[WEBSERVER] Config saved successfully."));  
+          request->onDisconnect([]() {
+            saveUptime();
+          });
+        }
 
-        request->onDisconnect([]() {
-          saveUptime();
-          delay(100);
-          ESP.restart();
-        });
       });
 
   server.on("/restore", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -1072,6 +1115,81 @@ void setupWebServer() {
       delay(500);
       ESP.restart();
     });
+  });
+
+  // Handler for Audio Uploads
+  server.on(
+      "/upload_audio", HTTP_POST,
+      [](AsyncWebServerRequest *request) {
+        request->send(200, "text/plain", "Upload Complete");
+      },
+      [](AsyncWebServerRequest *request, const String &filename, size_t index,
+         uint8_t *data, size_t len, bool final) {
+        static File uploadFile;
+
+        if (index == 0) {
+          Serial.printf("[AUDIO] Starting Upload: %s\n", filename.c_str());
+
+          // 1. Check if the directory exists, if not, create it
+          if (!LittleFS.exists("/sounds")) {
+            if (LittleFS.mkdir("/sounds")) {
+              Serial.println("[AUDIO] Created /sounds directory");
+            } else {
+              Serial.println("[AUDIO] FAILED to create /sounds directory");
+            }
+          }
+
+          // 2. Open the file. Ensure the path starts with a slash.
+          String path = "/sounds/" + filename;
+          uploadFile = LittleFS.open(path, "w");
+
+          if (!uploadFile) {
+            Serial.printf("[AUDIO] ERROR: Could not open %s for writing\n",
+                          path.c_str());
+          }
+        }
+
+        if (uploadFile) {
+          uploadFile.write(data, len);
+        }
+
+        if (final) {
+          if (uploadFile) {
+            uploadFile.close();
+            Serial.println("[AUDIO] File saved successfully.");
+          }
+        }
+      });
+
+  server.on("/list_sounds", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = "{\"sounds\":[";
+    File root = LittleFS.open("/sounds");
+    if (!root || !root.isDirectory()) {
+      request->send(200, "application/json", "{\"sounds\":[]}");
+      return;
+    }
+
+    File file = root.openNextFile();
+    bool first = true;
+    while (file) {
+      if (!first)
+        json += ",";
+      json += "\"" + String(file.name()) + "\"";
+      first = false;
+      file = root.openNextFile();
+    }
+    json += "]}";
+    request->send(200, "application/json", json);
+  });
+
+  server.on("/set_volume", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("value", true)) {
+      audioVolume = request->getParam("value", true)->value().toInt();
+      audioVolume = constrain(audioVolume, 0, 21);
+      audio.setVolume(audioVolume);
+      Serial.printf("[AUDIO] Volume set to: %d\n", audioVolume);
+      request->send(200, "application/json", "{\"ok\":true}");
+    }
   });
 
   server.onNotFound(handleCaptivePortal);

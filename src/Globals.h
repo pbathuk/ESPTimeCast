@@ -110,6 +110,8 @@ extern int sunriseHour;
 extern int sunriseMinute;
 extern int sunsetHour;
 extern int sunsetMinute;
+extern bool dimmingClicks;
+extern bool dimActive;
 
 // Wifi constants
 extern const char *DEFAULT_AP_PASSWORD;
@@ -197,4 +199,11 @@ extern unsigned long customMessageEndTime;
 extern unsigned long customerMessageDuration;
 
 extern int currentDisplayCycleCount; 
+
+extern char longClickSound[64];
+extern char shortClickSound[64];
+extern char alarmClockSound[64];
+
+extern int audioVolume;
+
 #endif

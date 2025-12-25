@@ -69,6 +69,8 @@ int sunriseHour = 6;
 int sunriseMinute = 0;
 int sunsetHour = 18;
 int sunsetMinute = 0;
+bool dimmingClicks = false; // When true this will Disable the clicks when dimming is enabled
+bool dimActive = false;
 
 // Wifi constants
 const char *DEFAULT_AP_PASSWORD = "12345678";
@@ -175,3 +177,10 @@ const unsigned long descriptionScrollPause = 300; // 300ms pause after scroll
 Button2 buttonLeft;
 Button2 buttonMiddle;
 Button2 buttonRight;
+
+char longClickSound[64] = "";
+char shortClickSound[64] = "";
+char alarmClockSound[64] = "";
+
+int audioVolume = 10;
+
